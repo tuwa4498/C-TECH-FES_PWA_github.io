@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GT TIME ATTACK // リアルタイムランキングシステム</title>
+  <meta name="theme-color" content="#090b10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for Excel (.xlsx/.xls/.csv) Import & Export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <!-- Google Fonts: Inter, Noto Sans JP, Orbitron, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:ital,wght@0,500;0,700;0,800;1,700&family=Noto+Sans+JP:wght@400;500;700;900&family=Orbitron:wght@600;700;800;900&display=swap"
+    rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans JP"', 'Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+            display: ['Orbitron', '"Noto Sans JP"', 'sans-serif'],
+          },
+          colors: {
+            gt: {
+              bg: '#080a0f',
+              panel: '#10141d',
+              card: '#161c28',
+              border: '#232c3d',
+              red: '#e60012',
+              redGlow: '#ff1e32',
+              cyan: '#00e5ff',
+              gold: '#fbbf24',
+              silver: '#cbd5e1',
+              bronze: '#d97706',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* カスタムスクロールバーとグランツーリスモ風テレメトリーデザイン */
+    body {
+      background-color: #080a0f;
+      color: #f1f5f9;
+      font-feature-settings: "palt";
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .carbon-bg {
+      background-color: #080a0f;
+      background-image:
+        radial-gradient(circle at 15% 0%, rgba(230, 0, 18, 0.14) 0%, transparent 45%),
+        radial-gradient(circle at 85% 10%, rgba(0, 229, 255, 0.09) 0%, transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+    }
+
+    .racing-stripe {
+      background: repeating-linear-gradient(-45deg,
+          #e60012,
+          #e60012 10px,
+          #99000c 10px,
+          #99000c 20px);
+    }
+
+    @keyframes pulseHighlight {
+      0% {
+        background-color: rgba(0, 229, 255, 0.35);
+        transform: scale(1.01);
+        box-shadow: 0 0 25px rgba(0, 229, 255, 0.45);
+      }
+
+      50% {
+        background-color: rgba(230, 0, 18, 0.25);
+      }
+
+      100% {
+        background-color: rgba(22, 28, 40, 0.9);
+        transform: scale(1);
+        box-shadow: none;
+      }
+    }
+
+    .new-record-flash {
+      animation: pulseHighlight 3.2s ease-out forwards;
+      border-color: #00e5ff !important;
+    }
+
+    /* スクロールバー美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0d1118;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2b364a;
+      border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+
+<body class="carbon-bg min-h-screen flex flex-col selection:bg-gt-red selection:text-white">
+
+  <!-- アプリ全体コンテナ -->
+  <div id="app" class="flex-1 flex flex-col"></div>
+
+  <!-- 通知トーストコンテナ -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- 汎用モーダル（編集・確認ダイアログ用：alert/confirm不使用） -->
+  <div id="modal-backdrop"
+    class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div id="modal-content"
+      class="bg-gt-panel border border-gt-border rounded-2xl max-w-lg w-full p-6 shadow-2xl transform transition-all">
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ============================================================================
+     * 1. PWA マニフェスト & Service Worker 動的生成（単一HTMLファイルで完結）
+     * ============================================================================
+     */
+    (function setupPWA() {
+      try {
+        const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+          <rect width="512" height="512" rx="112" fill="#080a0f"/>
+          <path d="M96 340 L176 172 L416 172 L336 340 Z" fill="#e60012"/>
+          <text x="256" y="295" font-family="sans-serif" font-weight="900" font-size="140" fill="#ffffff" text-anchor="middle">GT</text>
+        </svg>`;
+        const iconUrl = 'data:image/svg+xml;base64,' + btoa(iconSvg);
+
+        const manifest = {
+          name: 'GT タイムアタック ランキングシステム',
+          short_name: 'GTランキング',
+          description: '学校イベント用 グランツーリスモ リアルタイムタイムアタックランキング',
+          start_url: location.href.split('?')[0],
+          display: 'standalone',
+          background_color: '#080a0f',
+          theme_color: '#e60012',
+          icons: [
+            { src: iconUrl, sizes: '192x192', type: 'image/svg+xml' },
+            { src: iconUrl, sizes: '512x512', type: 'image/svg+xml' }
+          ]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = URL.createObjectURL(manifestBlob);
+        document.head.appendChild(manifestLink);
+
+        if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+          const swCode = `
+            const CACHE_NAME = 'gt-ranking-v1';
+            self.addEventListener('install', (e) => {
+              self.skipWaiting();
+            });
+            self.addEventListener('activate', (e) => {
+              e.waitUntil(clients.claim());
+            });
+            self.addEventListener('fetch', (e) => {
+              e.respondWith(
+                fetch(e.request).catch(() => caches.match(e.request))
+              );
+            });
+          `;
+          const swBlob = new Blob([swCode], { type: 'application/javascript' });
+          navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => { });
+        }
+      } catch (err) {
+        console.warn('PWA init note:', err);
+      }
+    })();
+
+    /**
+     * ============================================================================
+     * 2. デフォルト生徒データ（添付エクセル seito_nomi.xlsx 全134名）
+     * ============================================================================
+     */
+    const DEFAULT_STUDENTS = [
+      "畔津　裕我", "大平　聖也", "甲斐　瑛人", "加嶋　 愛", "川野　佑介", "木野　連翔", "清原　惟織", "河野　優夢",
+      "小林　明愛", "島田　 准", "田邉　彩人", "田辺　大智", "仲野　颯汰", "藤井　 祐", "古木　陽光", "安部　 伶",
+      "五十川　暖人", "岩下　 嶺", "植木　 翔", "岡成　 侃", "小野　歩睦", "小野　琉星", "日下　颯人", "工藤　海吏",
+      "工藤　優和", "佐々木　冬馬", "首藤　敬大", "首藤　千夏", "武内　 伶", "德丸　飛羽魁", "山本　大夢", "若林　橙希",
+      "木森　海翔", "櫻井　 遼", "田原　悠豊", "安部　智昭", "天野　充丈", "有田　光輝", "石倉　 慧", "野宮　恵夢",
+      "松本　征之助", "伊藤　大毅", "越智　和花", "後藤　凛偉", "高田　温揮", "安東　結人", "石川　聖也", "衞藤　蔵之介",
+      "柏原　拓武", "金丸　寛之", "久保田　翔也", "篠田　靖希", "秦　 涼仁", "藤内　創史", "成安　柊斗", "日髙　瑞城",
+      "渕　 悠太郎", "松岡　直和", "山本　翔太郎", "𠮷村　心翔", "安藤　綜太", "小田巻　海飛", "髙橋　歩夢", "日髙　 祥",
+      "吉松　准一", "安部　夏南子", "浦田　拳伍", "大田　大偉", "賀耒　らら", "加藤　里沙", "川田　暁子", "城戸　利奈",
+      "後藤　美和子", "迫村　和茂", "津末　朋子", "三又　 楓", "嘉藤　 潤", "北田　藤士", "髙橋　真也", "東島　陽向",
+      "村上　将太", "渡邊　佑真", "定家　直哉", "志村　優衣", "谷本　健真", "阿部　真大", "荒巻　貴也", "大城　希海",
+      "木本　 尊", "吉良　沙矢加", "吉良　優斗", "草野　啓太", "小林　未来", "財津　弘征", "崎野　将希", "崎野　綾佑",
+      "佐藤　遙人", "生野　哉太", "野澤　力也", "野村　空我", "羽田野　龍之介", "樋口　裕亮", "藤島　裕己", "前田　龍青",
+      "山口　斎成", "足立　瑳久也", "板井　優樹", "岩男　朋幸", "大串　桐矢", "大嶋　晴貴", "大村　光輝", "梶原  一翔",
+      "一　 陽太朗", "河野　玄詠", "河野　 慶", "山中　翔太郎", "𠮷田　由那", "遠藤　稜也", "大石　結衣", "佐藤　康大",
+      "佐藤　優凪", "谷本　 哲", "都留　勇正", "永野　実瞳", "楢橋　拓真", "橋本　 駿", "伊藤　昌洋", "御座岡　桃絆",
+      "滋野　塁", "首藤　丈宗", "田中　大瑚", "藤近　柊碧", "三ヶ尻　頼矢", "山上　星美"
+    ];
+
+    /**
+     * ============================================================================
+     * 3. 状態管理 & ストレージ同期（別タブリアルタイム連携）
+     * ============================================================================
+     */
+    const STORAGE_KEYS = {
+      STUDENTS: 'gt_ta_students_v1',
+      RECORDS: 'gt_ta_records_v1',
+      SETTINGS: 'gt_ta_settings_v1',
+      LAST_EVENT: 'gt_ta_last_event_v1'
+    };
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStageMode = urlParams.get('mode') === 'stage';
+
+    // BroadcastChannel（同一ブラウザ内の別タブ即時同期）
+    const syncChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('gt_time_attack_sync') : null;
+
+    let state = {
+      students: loadJSON(STORAGE_KEYS.STUDENTS, [...DEFAULT_STUDENTS]),
+      records: loadJSON(STORAGE_KEYS.RECORDS, []),
+      settings: loadJSON(STORAGE_KEYS.SETTINGS, {
+        eventTitle: 'GRAN TURISMO TIME ATTACK',
+        courseName: '鈴鹿サーキット / タイムアタック',
+        autoScroll: false,
+        showPreview: true
+      }),
+      activeTab: 'entry', // 'entry' | 'ranking' | 'students' | 'settings'
+      searchQuery: '',
+      selectedStudent: '',
+      carInput: '',
+      minInput: '',
+      secInput: '',
+      msInput: '',
+      studentManageSearch: '',
+      newStudentName: '',
+      latestRecordId: null,
+      deferredInstallPrompt: null,
+      isComposing: false
+    };
+
+    function loadJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function saveAndBroadcast(type = 'UPDATE', payload = {}) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(state.students));
+        localStorage.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(state.records));
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(state.settings));
+        const eventObj = { type, payload, timestamp: Date.now() };
+        localStorage.setItem(STORAGE_KEYS.LAST_EVENT, JSON.stringify(eventObj));
+        if (syncChannel) {
+          syncChannel.postMessage(eventObj);
+        }
+      } catch (e) {
+        showToast('データの保存中にエラーが発生しました', 'error');
+      }
+    }
+
+    // 他タブからの更新を受信
+    function handleExternalSync(eventObj) {
+      state.students = loadJSON(STORAGE_KEYS.STUDENTS, [...DEFAULT_STUDENTS]);
+      state.records = loadJSON(STORAGE_KEYS.RECORDS, []);
+      state.settings = loadJSON(STORAGE_KEYS.SETTINGS, state.settings);
+
+      if (eventObj && eventObj.type === 'NEW_RECORD' && eventObj.payload?.recordId) {
+        state.latestRecordId = eventObj.payload.recordId;
+        if (isStageMode) {
+          showToast(`NEW RECORD! ${eventObj.payload.name} (${formatTimeMs(eventObj.payload.timeMs)})`, 'info');
+        }
+      }
+      render();
+    }
+
+    if (syncChannel) {
+      syncChannel.onmessage = (e) => handleExternalSync(e.data);
+    }
+    window.addEventListener('storage', (e) => {
+      if (Object.values(STORAGE_KEYS).includes(e.key)) {
+        const eventObj = loadJSON(STORAGE_KEYS.LAST_EVENT, null);
+        handleExternalSync(eventObj);
+      }
+    });
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      state.deferredInstallPrompt = e;
+      render();
+    });
+
+    /**
+     * ============================================================================
+     * 4. ユーティリティ関数（タイム変換・検索正規化・ランキング計算）
+     * ============================================================================
+     */
+    // ミリ秒を「M:SS.mmm」形式へフォーマット
+    function formatTimeMs(totalMs) {
+      if (typeof totalMs !== 'number' || isNaN(totalMs) || totalMs < 0) return '--:--.---';
+      const minutes = Math.floor(totalMs / 60000);
+      const seconds = Math.floor((totalMs % 60000) / 1000);
+      const ms = Math.floor(totalMs % 1000);
+      return `${minutes}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+    }
+
+    // トップとのタイム差を「+S.mmm」または「+M:SS.mmm」で表示
+    function formatGapMs(diffMs) {
+      if (diffMs <= 0) return 'LEADER';
+      if (diffMs < 60000) {
+        const sec = Math.floor(diffMs / 1000);
+        const ms = Math.floor(diffMs % 1000);
+        return `+${sec}.${String(ms).padStart(3, '0')}`;
+      }
+      return `+${formatTimeMs(diffMs)}`;
+    }
+
+    // 全角・半角スペースを除去し、カタカナをひらがなに統一して検索用に正規化
+    function normalizeStr(str) {
+      return (str || '')
+        .replace(/[\s　]+/g, '')
+        .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+        .toLowerCase();
+    }
+
+    // タイム昇順でソートされたランキング配列を取得（同タイムは先着順）
+    function getSortedRanking() {
+      const sorted = [...state.records].sort((a, b) => {
+        if (a.timeMs !== b.timeMs) return a.timeMs - b.timeMs;
+        return a.createdAt - b.createdAt;
+      });
+      // 同一人物が複数回登録されている場合、その人のベストかどうかも判定
+      const seenDrivers = new Set();
+      return sorted.map((rec, idx) => {
+        const key = normalizeStr(rec.name);
+        const isPersonalBest = !seenDrivers.has(key);
+        seenDrivers.add(key);
+        return {
+          ...rec,
+          rank: idx + 1,
+          isPersonalBest
+        };
+      });
+    }
+
+    // 入力された車種履歴からクイック選択候補を作成
+    function getRecentCars() {
+      const cars = [];
+      const seen = new Set();
+      for (let i = state.records.length - 1; i >= 0; i--) {
+        const c = (state.records[i].car || '').trim();
+        if (c && !seen.has(c)) {
+          seen.add(c);
+          cars.push(c);
+        }
+        if (cars.length >= 8) break;
+      }
+      return cars;
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // トースト通知
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const el = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-950/95 border-emerald-500 text-emerald-100',
+        error: 'bg-rose-950/95 border-rose-500 text-rose-100',
+        info: 'bg-slate-900/95 border-gt-cyan text-cyan-100'
+      };
+      el.className = `pointer-events-auto border-l-4 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md text-sm font-bold flex items-center gap-3 transition-all duration-300 ${colors[type] || colors.info}`;
+      el.innerHTML = `<span>${escapeHtml(message)}</span>`;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(10px)';
+        setTimeout(() => el.remove(), 300);
+      }, 3400);
+    }
+
+    // モーダル制御
+    function openModal(htmlContent) {
+      const backdrop = document.getElementById('modal-backdrop');
+      const content = document.getElementById('modal-content');
+      content.innerHTML = htmlContent;
+      backdrop.classList.remove('hidden');
+      backdrop.classList.add('flex');
+    }
+
+    function closeModal() {
+      const backdrop = document.getElementById('modal-backdrop');
+      backdrop.classList.add('hidden');
+      backdrop.classList.remove('flex');
+    }
+
+    /**
+     * ============================================================================
+     * 5. 業務ロジック（タイム登録・編集・削除・エクセル入出力）
+     * ============================================================================
+     */
+    function submitTimeRecord(e) {
+      if (e) e.preventDefault();
+      const driverName = (state.selectedStudent || state.searchQuery).trim();
+      if (!driverName) {
+        showToast('生徒を選択するか、名前を入力してください', 'error');
+        return;
+      }
+
+      const min = parseInt(state.minInput || '0', 10);
+      const sec = parseInt(state.secInput || '0', 10);
+      const msStr = (state.msInput || '0').padEnd(3, '0').slice(0, 3);
+      const ms = parseInt(msStr, 10);
+
+      if (isNaN(min) || isNaN(sec) || isNaN(ms) || min < 0 || sec < 0 || sec >= 60 || ms < 0 || ms >= 1000) {
+        showToast('タイムを正しく入力してください（秒は00〜59）', 'error');
+        return;
+      }
+      const totalMs = (min * 60000) + (sec * 1000) + ms;
+      if (totalMs <= 0) {
+        showToast('0:00.000 より大きいタイムを入力してください', 'error');
+        return;
+      }
+
+      const car = (state.carInput || '').trim() || '車種未指定';
+      const newRecord = {
+        id: 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        name: driverName,
+        car: car,
+        timeMs: totalMs,
+        createdAt: Date.now()
+      };
+
+      state.records.push(newRecord);
+      state.latestRecordId = newRecord.id;
+
+      // 入力欄リセット（車種は連続入力しやすいよう残すか選択可能だが、ここでは次の人のためにタイムと生徒をクリア）
+      state.minInput = '';
+      state.secInput = '';
+      state.msInput = '';
+      state.selectedStudent = '';
+      state.searchQuery = '';
+
+      saveAndBroadcast('NEW_RECORD', {
+        recordId: newRecord.id,
+        name: newRecord.name,
+        timeMs: newRecord.timeMs
+      });
+
+      const ranked = getSortedRanking();
+      const myEntry = ranked.find(r => r.id === newRecord.id);
+      showToast(`登録完了！ ${newRecord.name} / ${formatTimeMs(newRecord.timeMs)}（現在 ${myEntry ? myEntry.rank : '-'} 位）`, 'success');
+      render();
+      setTimeout(() => {
+        const searchEl = document.getElementById('student-search-input');
+        if (searchEl) searchEl.focus();
+      }, 50);
+    }
+
+    function openEditRecordModal(recordId) {
+      const rec = state.records.find(r => r.id === recordId);
+      if (!rec) return;
+      const min = Math.floor(rec.timeMs / 60000);
+      const sec = Math.floor((rec.timeMs % 60000) / 1000);
+      const ms = rec.timeMs % 1000;
+
+      openModal(`
+        <div class="flex items-center justify-between border-b border-gt-border pb-3 mb-4">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <span class="w-2 h-5 bg-gt-cyan rounded-full inline-block"></span>
+            記録の修正・編集
+          </h3>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-white p-1">✕</button>
+        </div>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">ドライバー名（生徒名）</label>
+            <input id="edit-rec-name" type="text" value="${escapeHtml(rec.name)}" list="all-students-datalist"
+              class="w-full bg-gt-bg border border-gt-border rounded-xl px-3 py-2.5 text-white focus:border-gt-cyan focus:outline-none" />
+            <datalist id="all-students-datalist">
+              ${state.students.map(s => `<option value="${escapeHtml(s)}"></option>`).join('')}
+            </datalist>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">ラップタイム（分 : 秒 . ミリ秒）</label>
+            <div class="flex items-center gap-2 font-mono">
+              <input id="edit-rec-min" type="number" min="0" max="59" value="${min}"
+                class="w-20 bg-gt-bg border border-gt-border rounded-xl px-3 py-2.5 text-center text-xl font-bold text-white focus:border-gt-cyan focus:outline-none" />
+              <span class="text-2xl font-bold text-slate-500">:</span>
+              <input id="edit-rec-sec" type="number" min="0" max="59" value="${String(sec).padStart(2, '0')}"
+                class="w-24 bg-gt-bg border border-gt-border rounded-xl px-3 py-2.5 text-center text-xl font-bold text-white focus:border-gt-cyan focus:outline-none" />
+              <span class="text-2xl font-bold text-slate-500">.</span>
+              <input id="edit-rec-ms" type="number" min="0" max="999" value="${String(ms).padStart(3, '0')}"
+                class="w-28 bg-gt-bg border border-gt-border rounded-xl px-3 py-2.5 text-center text-xl font-bold text-gt-cyan focus:border-gt-cyan focus:outline-none" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">使用車種</label>
+            <input id="edit-rec-car" type="text" value="${escapeHtml(rec.car)}"
+              class="w-full bg-gt-bg border border-gt-border rounded-xl px-3 py-2.5 text-white focus:border-gt-cyan focus:outline-none" />
+          </div>
+          <div class="flex justify-end gap-2 pt-3 border-t border-gt-border">
+            <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold">キャンセル</button>
+            <button onclick="saveEditedRecord('${rec.id}')" class="px-5 py-2 rounded-xl bg-gt-cyan hover:bg-cyan-400 text-slate-950 text-sm font-extrabold">変更を保存して反映</button>
+          </div>
+        </div>
+      `);
+    }
+
+    function saveEditedRecord(recordId) {
+      const name = document.getElementById('edit-rec-name').value.trim();
+      const min = parseInt(document.getElementById('edit-rec-min').value || '0', 10);
+      const sec = parseInt(document.getElementById('edit-rec-sec').value || '0', 10);
+      const msRaw = document.getElementById('edit-rec-ms').value || '0';
+      const ms = parseInt(msRaw.padEnd(3, '0').slice(0, 3), 10);
+      const car = document.getElementById('edit-rec-car').value.trim() || '車種未指定';
+
+      if (!name) {
+        showToast('名前を入力してください', 'error');
+        return;
+      }
+      if (isNaN(min) || isNaN(sec) || isNaN(ms) || sec < 0 || sec >= 60 || ms < 0 || ms >= 1000) {
+        showToast('タイムの値が不正です', 'error');
+        return;
+      }
+      const totalMs = (min * 60000) + (sec * 1000) + ms;
+      const idx = state.records.findIndex(r => r.id === recordId);
+      if (idx !== -1) {
+        state.records[idx] = { ...state.records[idx], name, timeMs: totalMs, car };
+        state.latestRecordId = recordId;
+        saveAndBroadcast('UPDATE_RECORD', { recordId });
+        closeModal();
+        showToast('記録を更新しました', 'success');
+        render();
+      }
+    }
+
+    function confirmDeleteRecord(recordId) {
+      const rec = state.records.find(r => r.id === recordId);
+      if (!rec) return;
+      openModal(`
+        <h3 class="text-lg font-bold text-white mb-2">この記録を削除しますか？</h3>
+        <p class="text-sm text-slate-300 mb-4">
+          <span class="font-bold text-white">${escapeHtml(rec.name)}</span> のタイム
+          <span class="font-mono font-bold text-gt-cyan">${formatTimeMs(rec.timeMs)}</span>（${escapeHtml(rec.car)}）をランキングから削除します。
+        </p>
+        <div class="flex justify-end gap-2">
+          <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold">やめる</button>
+          <button onclick="deleteRecord('${rec.id}')" class="px-4 py-2 rounded-xl bg-gt-red hover:bg-red-500 text-white text-sm font-bold">削除する</button>
+        </div>
+      `);
+    }
+
+    function deleteRecord(recordId) {
+      state.records = state.records.filter(r => r.id !== recordId);
+      saveAndBroadcast('DELETE_RECORD', { recordId });
+      closeModal();
+      showToast('記録を削除しました', 'info');
+      render();
+    }
+
+    function confirmClearAllRecords() {
+      openModal(`
+        <h3 class="text-lg font-bold text-rose-400 mb-2">全ランキング記録をリセットしますか？</h3>
+        <p class="text-sm text-slate-300 mb-4">現在登録されている <span class="font-bold text-white">${state.records.length}件</span> のタイム記録がすべて消去されます。（生徒一覧は消えません）</p>
+        <div class="flex justify-end gap-2">
+          <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold">キャンセル</button>
+          <button onclick="clearAllRecords()" class="px-4 py-2 rounded-xl bg-gt-red hover:bg-red-500 text-white text-sm font-bold">すべて消去する</button>
+        </div>
+      `);
+    }
+
+    function clearAllRecords() {
+      state.records = [];
+      state.latestRecordId = null;
+      saveAndBroadcast('CLEAR_ALL');
+      closeModal();
+      showToast('全ランキング記録をリセットしました', 'info');
+      render();
+    }
+
+    // エクセルファイル読み込み（生徒一覧インポート）
+    function handleExcelUpload(event, mode = 'replace') {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          if (typeof XLSX === 'undefined') {
+            showToast('Excel解析ライブラリの読み込みを確認してください', 'error');
+            return;
+          }
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+          const extracted = [];
+          const headerWords = ['名前', '氏名', '生徒名', 'name', 'student'];
+          rows.forEach((row, index) => {
+            if (!Array.isArray(row)) return;
+            for (const cell of row) {
+              if (cell !== null && cell !== undefined) {
+                const text = String(cell).trim();
+                if (!text) continue;
+                // 1行目が「名前」「氏名」などの見出しならスキップ
+                if (index === 0 && headerWords.includes(text.toLowerCase())) continue;
+                extracted.push(text);
+                break; // 1行につき最初の有効セルを生徒名として取得
+              }
+            }
+          });
+
+          if (extracted.length === 0) {
+            showToast('エクセル内に有効な生徒名が見つかりませんでした', 'error');
+            return;
+          }
+
+          if (mode === 'replace') {
+            state.students = [...new Set(extracted)];
+          } else {
+            state.students = [...new Set([...state.students, ...extracted])];
+          }
+          saveAndBroadcast('STUDENTS_UPDATED');
+          showToast(`${extracted.length}名の生徒データを読み込みました（合計 ${state.students.length}名）`, 'success');
+          render();
+        } catch (err) {
+          console.error(err);
+          showToast('エクセルファイルの読み込みに失敗しました', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      event.target.value = '';
+    }
+
+    // ランキング結果のエクセル出力
+    function exportRankingExcel() {
+      const ranked = getSortedRanking();
+      if (ranked.length === 0) {
+        showToast('出力するランキングデータがありません', 'error');
+        return;
+      }
+      const rows = ranked.map(r => ({
+        '順位': r.rank,
+        '氏名': r.name,
+        'タイム': formatTimeMs(r.timeMs),
+        'ミリ秒': r.timeMs,
+        '車種': r.car,
+        '登録時刻': new Date(r.createdAt).toLocaleTimeString('ja-JP')
+      }));
+
+      if (typeof XLSX !== 'undefined') {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'ランキング結果');
+        XLSX.writeFile(wb, `GT_Ranking_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        showToast('エクセルファイルをダウンロードしました', 'success');
+      } else {
+        // CSVフォールバック
+        const csv = ['順位,氏名,タイム,車種', ...ranked.map(r => `${r.rank},"${r.name}",${formatTimeMs(r.timeMs)},"${r.car}"`)].join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `GT_Ranking_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+      }
+    }
+
+    // 別タブでモニター表示画面を開く
+    function openStageMonitorTab() {
+      const baseUrl = window.location.href.split('?')[0];
+      const stageWin = window.open(`${baseUrl}?mode=stage`, 'GT_Stage_Monitor');
+      if (!stageWin) {
+        showToast('ポップアップがブロックされました。ブラウザの許可設定を確認してください', 'error');
+      } else {
+        showToast('モニター表示用タブを開きました！プロジェクターや外部モニターへ移動してください', 'success');
+      }
+    }
+
+    function triggerPWAInstall() {
+      if (state.deferredInstallPrompt) {
+        state.deferredInstallPrompt.prompt();
+        state.deferredInstallPrompt.userChoice.then(() => {
+          state.deferredInstallPrompt = null;
+          render();
+        });
+      } else {
+        openModal(`
+          <h3 class="text-lg font-bold text-white mb-2">PWA（アプリ化）インストール方法</h3>
+          <p class="text-sm text-slate-300 leading-relaxed mb-4">
+            このシステムはオフライン動作対応のPWAです。<br>
+            ブラウザのアドレスバー右端にある<strong>「インストール」アイコン</strong>、またはブラウザメニューの<strong>「アプリをインストール / ホーム画面に追加」</strong>からPC・タブレットにアプリとして保存できます。
+          </p>
+          <div class="flex justify-end">
+            <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-gt-cyan text-slate-950 font-bold text-sm">閉じる</button>
+          </div>
+        `);
+      }
+    }
+
+    /**
+     * ============================================================================
+     * 6. ビュー描画（モニター表示モード / 管理者操作モード）
+     * ============================================================================
+     */
+    function renderStageBoardHTML(isCompactPreview = false) {
+      const ranked = getSortedRanking();
+      const top3 = ranked.slice(0, 3);
+      const rest = ranked.slice(3);
+      const leaderTime = ranked.length > 0 ? ranked[0].timeMs : 0;
+
+      const podiumStyles = [
+        {
+          rankLabel: '1ST',
+          border: 'border-amber-400/80',
+          bg: 'from-amber-500/20 via-gt-card to-gt-panel',
+          badge: 'bg-amber-400 text-slate-950',
+          timeColor: 'text-amber-300',
+          glow: 'shadow-[0_0_30px_rgba(251,191,36,0.18)]'
+        },
+        {
+          rankLabel: '2ND',
+          border: 'border-slate-300/60',
+          bg: 'from-slate-400/15 via-gt-card to-gt-panel',
+          badge: 'bg-slate-200 text-slate-950',
+          timeColor: 'text-slate-100',
+          glow: ''
+        },
+        {
+          rankLabel: '3RD',
+          border: 'border-amber-600/70',
+          bg: 'from-amber-700/20 via-gt-card to-gt-panel',
+          badge: 'bg-amber-600 text-white',
+          timeColor: 'text-amber-400',
+          glow: ''
+        }
+      ];
+
+      return `
+        <div class="flex flex-col ${isCompactPreview ? 'h-full p-3 text-xs' : 'min-h-screen p-4 md:px-10 md:py-6 w-full'}">
+          <!-- モニターヘッダー -->
+          <header class="flex flex-wrap items-center justify-between gap-3 border-b border-gt-border pb-3 mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-3 ${isCompactPreview ? 'h-8' : 'h-14'} bg-gt-red rounded-sm shadow-[0_0_15px_#e60012]"></div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-display font-black tracking-wider text-gt-red ${isCompactPreview ? 'text-[10px]' : 'text-xs md:text-base'}">OFFICIAL LIVE TIMING</span>
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-bold">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> LIVE
+                  </span>
+                </div>
+                <h1 class="font-display font-black tracking-tight text-white ${isCompactPreview ? 'text-base' : 'text-2xl md:text-5xl'}">
+                  ${escapeHtml(state.settings.eventTitle)}
+                </h1>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <div class="text-right">
+                <div class="text-slate-400 ${isCompactPreview ? 'text-[10px]' : 'text-sm md:text-lg'} font-bold">${escapeHtml(state.settings.courseName)}</div>
+                <div class="font-mono text-gt-cyan font-black ${isCompactPreview ? 'text-xs' : 'text-base md:text-2xl'}">
+                  TOTAL RUNS: <span class="text-white">${ranked.length}</span>
+                </div>
+              </div>
+              ${!isCompactPreview ? `
+                <button onclick="toggleStageFullscreen()" title="全画面表示切替"
+                  class="px-4 py-2.5 rounded-xl bg-gt-card hover:bg-slate-800 border border-gt-border text-slate-200 text-sm font-bold transition">
+                  ⛶ 全画面
+                </button>
+              ` : ''}
+            </div>
+          </header>
+
+          ${ranked.length === 0 ? `
+            <div class="flex-1 flex flex-col items-center justify-center border border-dashed border-gt-border rounded-2xl p-10 text-center bg-gt-panel/50">
+              <div class="font-display text-2xl md:text-4xl font-black text-slate-600 mb-2">WAITING FOR CHALLENGERS...</div>
+              <p class="text-slate-400 text-sm md:text-base">管理者画面から最初のタイムが登録されるとリアルタイムでランキングが表示されます</p>
+            </div>
+          ` : `
+            <!-- TOP 3 表彰台カード（画面上部を大きく占有する特大レイアウト） -->
+            <div class="grid grid-cols-1 ${isCompactPreview ? 'gap-2 mb-3' : 'md:grid-cols-3 gap-6 mb-6'}">
+              ${[0, 1, 2].map(idx => {
+        const entry = top3[idx];
+        const st = podiumStyles[idx];
+        if (!entry) {
+          return `
+                    <div class="rounded-3xl border-2 border-gt-border/60 bg-gt-panel/40 ${isCompactPreview ? 'p-3' : 'p-8 min-h-[290px]'} flex items-center justify-center text-slate-600 font-display text-2xl font-black">
+                      ${st.rankLabel} // NO RECORD
+                    </div>
+                  `;
+        }
+        const isNew = entry.id === state.latestRecordId;
+        return `
+                  <div class="relative overflow-hidden rounded-3xl border-2 ${st.border} bg-gradient-to-br ${st.bg} ${st.glow} ${isNew ? 'new-record-flash' : ''} ${isCompactPreview ? 'p-3' : 'p-6 lg:p-8 flex flex-col justify-between min-h-[270px] xl:min-h-[310px]'} transition-all">
+                    <!-- 背景の巨大順位透かし -->
+                    <div class="pointer-events-none select-none absolute -right-3 -bottom-8 font-display font-black italic leading-none text-white/[0.05] ${isCompactPreview ? 'text-6xl' : 'text-[170px] xl:text-[210px]'}">
+                      0${idx + 1}
+                    </div>
+
+                    <div class="relative z-10 flex items-center justify-between ${isCompactPreview ? 'mb-1.5' : 'mb-3'}">
+                      <span class="font-display font-black tracking-wider ${isCompactPreview ? 'px-2.5 py-0.5 text-xs rounded-lg' : 'px-4 py-1.5 text-lg xl:text-2xl rounded-xl shadow-lg'} ${st.badge}">
+                        ${st.rankLabel}
+                      </span>
+                      <div class="flex items-center gap-2">
+                        ${isNew ? `<span class="px-3 py-1 rounded-lg bg-gt-cyan text-slate-950 font-black text-sm animate-bounce">NEW!</span>` : ''}
+                        <span class="font-mono text-slate-200 ${isCompactPreview ? 'text-xs' : 'text-base xl:text-xl'} font-extrabold">
+                          ${idx === 0 ? 'TOP TIME' : formatGapMs(entry.timeMs - leaderTime)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="relative z-10 my-auto py-1">
+                      <div class="font-black text-white tracking-tight leading-none truncate ${isCompactPreview ? 'text-lg mb-1' : 'mb-3'}"
+                        ${!isCompactPreview ? 'style="font-size: clamp(2.4rem, 3.6vw, 4.4rem);"' : ''}>
+                        ${escapeHtml(entry.name)}
+                      </div>
+                      <div class="text-slate-200 font-extrabold truncate ${isCompactPreview ? 'text-xs mb-2' : 'text-lg xl:text-2xl mb-3'} flex items-center gap-2.5">
+                        <span class="inline-block w-3 h-3 rounded-full bg-gt-red shrink-0 shadow-[0_0_8px_#e60012]"></span>
+                        ${escapeHtml(entry.car)}
+                      </div>
+                    </div>
+
+                    <div class="relative z-10 pt-3 border-t-2 border-white/15 font-mono font-black tabular-nums tracking-tighter leading-none ${st.timeColor} ${isCompactPreview ? 'text-2xl' : ''}"
+                      ${!isCompactPreview ? 'style="font-size: clamp(2.8rem, 4.3vw, 5.4rem);"' : ''}>
+                      ${formatTimeMs(entry.timeMs)}
+                    </div>
+                  </div>
+                `;
+      }).join('')}
+            </div>
+
+            <!-- 4位以下のリーダーボードテーブル（トップ10前後が大きく映えるサイズ） -->
+            ${rest.length > 0 ? `
+              <div id="stage-leaderboard-scroll" class="flex-1 overflow-y-auto rounded-3xl border border-gt-border bg-gt-panel/90 backdrop-blur-md">
+                <table class="w-full text-left border-collapse">
+                  <thead class="sticky top-0 bg-gt-card border-b border-gt-border text-slate-400 font-display ${isCompactPreview ? 'text-[10px]' : 'text-sm xl:text-base'} uppercase tracking-wider z-10">
+                    <tr>
+                      <th class="${isCompactPreview ? 'py-1.5 px-2.5 w-12' : 'py-3.5 px-6 w-24'}">POS</th>
+                      <th class="${isCompactPreview ? 'py-1.5 px-2' : 'py-3.5 px-5'}">DRIVER</th>
+                      <th class="${isCompactPreview ? 'py-1.5 px-2 hidden sm:table-cell' : 'py-3.5 px-5'}">MACHINE</th>
+                      <th class="${isCompactPreview ? 'py-1.5 px-2.5 text-right' : 'py-3.5 px-6 text-right'}">LAP TIME</th>
+                      ${!isCompactPreview ? `<th class="py-3.5 px-6 text-right hidden md:table-cell">GAP</th>` : ''}
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gt-border/60">
+                    ${rest.map(entry => {
+        const isNew = entry.id === state.latestRecordId;
+        return `
+                        <tr class="${isNew ? 'new-record-flash' : 'hover:bg-white/[0.02]'} transition-colors">
+                          <td class="${isCompactPreview ? 'py-1.5 px-2.5 text-xs' : 'py-4 px-6 text-2xl xl:text-3xl'} font-display font-black text-slate-300">
+                            ${entry.rank}
+                          </td>
+                          <td class="${isCompactPreview ? 'py-1.5 px-2' : 'py-4 px-5'}">
+                            <div class="flex items-center gap-3">
+                              <span class="font-black text-white ${isCompactPreview ? 'text-xs' : 'text-xl md:text-2xl xl:text-3xl'}">${escapeHtml(entry.name)}</span>
+                              ${!entry.isPersonalBest ? `<span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-bold">SUB</span>` : ''}
+                              ${isNew ? `<span class="text-xs px-2 py-0.5 rounded bg-gt-cyan text-slate-950 font-black">NEW</span>` : ''}
+                            </div>
+                            ${isCompactPreview ? `<div class="text-[10px] text-slate-400 truncate sm:hidden">${escapeHtml(entry.car)}</div>` : ''}
+                          </td>
+                          <td class="${isCompactPreview ? 'py-1.5 px-2 text-[11px] hidden sm:table-cell' : 'py-4 px-5 text-base md:text-lg xl:text-xl font-bold'} text-slate-300">
+                            ${escapeHtml(entry.car)}
+                          </td>
+                          <td class="${isCompactPreview ? 'py-1.5 px-2.5 text-sm' : 'py-4 px-6 text-2xl md:text-3xl xl:text-4xl'} font-mono font-black tabular-nums text-right text-gt-cyan">
+                            ${formatTimeMs(entry.timeMs)}
+                          </td>
+                          ${!isCompactPreview ? `
+                            <td class="py-4 px-6 font-mono text-base xl:text-xl font-bold text-right text-slate-400 hidden md:table-cell">
+                              ${formatGapMs(entry.timeMs - leaderTime)}
+                            </td>
+                          ` : ''}
+                        </tr>
+                      `;
+      }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            ` : ''}
+          `}
+        </div>
+      `;
+    }
+
+    function toggleStageFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => { });
+      } else {
+        document.exitFullscreen().catch(() => { });
+      }
+    }
+
+    // 管理者画面のレンダリング
+    function renderAdminView() {
+      const ranked = getSortedRanking();
+      const recentCars = getRecentCars();
+      const normQuery = normalizeStr(state.searchQuery);
+      const filteredStudents = normQuery
+        ? state.students.filter(s => normalizeStr(s).includes(normQuery))
+        : state.students;
+
+      return `
+        <!-- 管理者用トップナビゲーションバー -->
+        <nav class="bg-gt-panel border-b border-gt-border sticky top-0 z-30">
+          <div class="racing-stripe h-1 w-full"></div>
+          <div class="max-w-[1600px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-gt-red flex items-center justify-center font-display font-black text-white shadow-lg shadow-gt-red/30">
+                GT
+              </div>
+              <div>
+                <div class="font-display font-extrabold text-sm md:text-base text-white tracking-wide">
+                  GT TIME ATTACK <span class="text-gt-red">ADMIN</span>
+                </div>
+                <div class="text-[11px] text-slate-400">生徒数: ${state.students.length}名 / 登録記録: ${state.records.length}件</div>
+              </div>
+            </div>
+
+            <!-- アクションボタン群 -->
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="togglePreviewPanel()"
+                class="px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${state.settings.showPreview ? 'bg-gt-cyan/15 border-gt-cyan text-gt-cyan' : 'bg-gt-card border-gt-border text-slate-300 hover:text-white'}">
+                👁 モニタープレビュー ${state.settings.showPreview ? 'ON' : 'OFF'}
+              </button>
+              <button onclick="openStageMonitorTab()"
+                class="px-4 py-2 rounded-xl bg-gt-red hover:bg-gt-redGlow text-white text-xs font-extrabold shadow-lg shadow-gt-red/25 transition flex items-center gap-1.5">
+                🖥 モニター表示画面を別タブで開く ↗
+              </button>
+              <button onclick="triggerPWAInstall()"
+                class="px-3 py-2 rounded-xl bg-gt-card hover:bg-slate-800 border border-gt-border text-slate-300 text-xs font-bold transition">
+                📲 PWAアプリ化
+              </button>
+            </div>
+          </div>
+
+          <!-- タブ切替メニュー -->
+          <div class="max-w-[1600px] mx-auto px-4 flex gap-1 overflow-x-auto border-t border-gt-border/60">
+            ${[
+          { id: 'entry', label: '⏱ タイム入力・登録' },
+          { id: 'ranking', label: `🏆 ランキング管理・修正 (${state.records.length})` },
+          { id: 'students', label: `👥 生徒一覧・Excel読込 (${state.students.length}名)` },
+          { id: 'settings', label: '⚙ イベント設定・出力' }
+        ].map(tab => `
+              <button onclick="switchAdminTab('${tab.id}')"
+                class="px-4 py-3 text-xs md:text-sm font-bold whitespace-nowrap border-b-2 transition ${state.activeTab === tab.id ? 'border-gt-red text-white bg-white/[0.03]' : 'border-transparent text-slate-400 hover:text-slate-200'}">
+                ${tab.label}
+              </button>
+            `).join('')}
+          </div>
+        </nav>
+
+        <!-- メインコンテンツエリア（左：操作パネル / 右：ライブモニタープレビュー） -->
+        <main class="flex-1 max-w-[1600px] w-full mx-auto p-4 grid grid-cols-1 ${state.settings.showPreview ? 'xl:grid-cols-12' : ''} gap-5 items-start">
+          
+          <!-- 左カラム：管理操作 -->
+          <div class="${state.settings.showPreview ? 'xl:col-span-7' : 'max-w-4xl mx-auto w-full'} space-y-5">
+            ${state.activeTab === 'entry' ? renderEntryTab(filteredStudents, recentCars) : ''}
+            ${state.activeTab === 'ranking' ? renderRankingManageTab(ranked) : ''}
+            ${state.activeTab === 'students' ? renderStudentsManageTab() : ''}
+            ${state.activeTab === 'settings' ? renderSettingsTab() : ''}
+          </div>
+
+          <!-- 右カラム：モニター画面リアルタイムプレビュー -->
+          ${state.settings.showPreview ? `
+            <aside class="xl:col-span-5 sticky top-28 bg-gt-bg border-2 border-gt-border rounded-2xl overflow-hidden shadow-2xl">
+              <div class="bg-gt-card px-3.5 py-2 border-b border-gt-border flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span class="text-xs font-bold text-slate-300">モニター表示 ライブプレビュー</span>
+                </div>
+                <button onclick="openStageMonitorTab()" class="text-[11px] font-bold text-gt-cyan hover:underline">
+                  別タブで拡大表示 ↗
+                </button>
+              </div>
+              <div class="max-h-[72vh] overflow-y-auto">
+                ${renderStageBoardHTML(true)}
+              </div>
+            </aside>
+          ` : ''}
+        </main>
+      `;
+    }
+
+    // タブ1：タイム入力・登録フォーム
+    function renderEntryTab(filteredStudents, recentCars) {
+      return `
+        <form onsubmit="submitTimeRecord(event)" class="bg-gt-panel border border-gt-border rounded-2xl p-5 md:p-6 shadow-xl space-y-6">
+          <!-- STEP 1: 生徒検索・選択 -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-extrabold text-white flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-gt-red text-white font-display text-xs">STEP 1</span>
+                生徒を検索して選択（または直接入力）
+              </label>
+              <button type="button" id="clear-student-btn" onclick="clearSelectedStudent()"
+                class="text-xs text-slate-400 hover:text-white underline ${state.selectedStudent ? '' : 'hidden'}">
+                選択解除
+              </button>
+            </div>
+
+            <div class="relative">
+              <input id="student-search-input" type="text"
+                value="${escapeHtml(state.searchQuery)}"
+                oncompositionstart="state.isComposing = true"
+                oncompositionupdate="handleStudentSearchInput(this.value)"
+                oncompositionend="state.isComposing = false; handleStudentSearchInput(this.value)"
+                oninput="handleStudentSearchInput(this.value)"
+                onkeyup="handleStudentSearchInput(this.value)"
+                onkeydown="handleStudentSearchKeydown(event, this.value)"
+                placeholder="名前を入力して検索（例：久保田、佐藤... スペース無しでもOK）"
+                autocomplete="off"
+                class="w-full bg-gt-bg border-2 ${state.selectedStudent ? 'border-emerald-500' : 'border-gt-border focus:border-gt-cyan'} rounded-xl px-4 py-3 text-base font-bold text-white placeholder-slate-500 focus:outline-none transition" />
+              <button type="button" id="clear-search-x-btn" onclick="clearSelectedStudent()"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 ${state.searchQuery ? '' : 'hidden'}">
+                ✕
+              </button>
+            </div>
+
+            <!-- 選択中ドライバー表示バッジ（入力欄を壊さないよう部分更新対象） -->
+            <div id="selected-driver-banner">
+              ${renderSelectedDriverBannerHTML()}
+            </div>
+
+            <!-- 検索候補リスト（クリックで即選択・部分更新対象） -->
+            <div id="student-candidates-list" class="mt-2.5 max-h-40 overflow-y-auto bg-gt-bg/80 border border-gt-border rounded-xl p-2 flex flex-wrap gap-1.5">
+              ${renderStudentCandidatesHTML(filteredStudents)}
+            </div>
+          </div>
+
+          <!-- STEP 2: タイム入力（何分何秒 コンマ3桁） -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-extrabold text-white flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded bg-gt-red text-white font-display text-xs">STEP 2</span>
+                ラップタイム入力（分 : 秒 . ミリ秒3桁）
+              </label>
+              <span class="text-[11px] text-slate-400">数字を入力すると自動で次の枠へ移動します</span>
+            </div>
+
+            <div class="bg-gt-bg border border-gt-border rounded-2xl p-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3 font-mono">
+              <div class="flex flex-col items-center">
+                <input id="time-min-input" type="text" inputmode="numeric" maxlength="2"
+                  value="${escapeHtml(state.minInput)}"
+                  oninput="handleTimePartInput('min', this)"
+                  placeholder="1"
+                  class="w-20 sm:w-24 bg-gt-card border-2 border-gt-border focus:border-gt-cyan rounded-xl py-3 text-center text-3xl sm:text-4xl font-black text-white focus:outline-none" />
+                <span class="text-[11px] text-slate-400 mt-1 font-sans font-bold">分 (MIN)</span>
+              </div>
+
+              <span class="text-3xl sm:text-4xl font-black text-slate-500 pb-5">:</span>
+
+              <div class="flex flex-col items-center">
+                <input id="time-sec-input" type="text" inputmode="numeric" maxlength="2"
+                  value="${escapeHtml(state.secInput)}"
+                  oninput="handleTimePartInput('sec', this)"
+                  placeholder="23"
+                  class="w-24 sm:w-28 bg-gt-card border-2 border-gt-border focus:border-gt-cyan rounded-xl py-3 text-center text-3xl sm:text-4xl font-black text-white focus:outline-none" />
+                <span class="text-[11px] text-slate-400 mt-1 font-sans font-bold">秒 (00〜59)</span>
+              </div>
+
+              <span class="text-3xl sm:text-4xl font-black text-gt-cyan pb-5">.</span>
+
+              <div class="flex flex-col items-center">
+                <input id="time-ms-input" type="text" inputmode="numeric" maxlength="3"
+                  value="${escapeHtml(state.msInput)}"
+                  oninput="handleTimePartInput('ms', this)"
+                  placeholder="456"
+                  class="w-28 sm:w-36 bg-gt-card border-2 border-gt-border focus:border-gt-cyan rounded-xl py-3 text-center text-3xl sm:text-4xl font-black text-gt-cyan focus:outline-none" />
+                <span class="text-[11px] text-slate-400 mt-1 font-sans font-bold">コンマ3桁 (000〜999)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3: 車種入力 -->
+          <div>
+            <label class="text-sm font-extrabold text-white flex items-center gap-2 mb-2">
+              <span class="px-2 py-0.5 rounded bg-gt-red text-white font-display text-xs">STEP 3</span>
+              使用車種を入力
+            </label>
+            <input id="car-model-input" type="text"
+              value="${escapeHtml(state.carInput)}"
+              oncompositionstart="state.isComposing = true"
+              oncompositionend="state.isComposing = false; state.carInput = this.value"
+              oninput="state.carInput = this.value"
+              placeholder="例：GT-R NISMO GT3 / スープラ RZ / NSX など"
+              class="w-full bg-gt-bg border-2 border-gt-border focus:border-gt-cyan rounded-xl px-4 py-3 text-base font-bold text-white placeholder-slate-500 focus:outline-none" />
+
+            ${recentCars.length > 0 ? `
+              <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                <span class="text-[11px] text-slate-400 font-bold mr-1">最近使った車種:</span>
+                ${recentCars.map(car => `
+                  <button type="button" onclick="pickRecentCar('${escapeHtml(car)}')"
+                    class="px-2.5 py-1 rounded-lg bg-gt-card hover:bg-slate-700 border border-gt-border text-xs text-slate-200 font-medium transition">
+                    ${escapeHtml(car)}
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- 送信ボタン -->
+          <div class="pt-2">
+            <button type="submit"
+              class="w-full py-4 rounded-2xl bg-gradient-to-r from-gt-red to-rose-600 hover:from-gt-redGlow hover:to-rose-500 text-white font-black text-lg tracking-wide shadow-xl shadow-gt-red/30 transition transform active:scale-[0.99] flex items-center justify-center gap-2">
+              🏁 ランキングにタイムを反映する
+            </button>
+            <p class="text-center text-[11px] text-slate-400 mt-2">
+              ※同じ生徒が何回挑戦しても、それぞれの記録が個別にランキングへ追加されます
+            </p>
+          </div>
+        </form>
+      `;
+    }
+
+    // タブ2：ランキング一覧管理・修正・削除
+    function renderRankingManageTab(ranked) {
+      return `
+        <div class="bg-gt-panel border border-gt-border rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gt-border pb-3">
+            <div>
+              <h2 class="text-base font-extrabold text-white">登録済みタイム一覧（修正・削除）</h2>
+              <p class="text-xs text-slate-400">入力ミスや人違いがあった場合は「編集」または「削除」で即座にモニターへ反映されます</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="exportRankingExcel()" class="px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold">
+                📥 Excel出力
+              </button>
+              ${ranked.length > 0 ? `
+                <button onclick="confirmClearAllRecords()" class="px-3 py-2 rounded-xl bg-rose-950 hover:bg-rose-900 border border-rose-700 text-rose-200 text-xs font-bold">
+                  🗑 全記録リセット
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          ${ranked.length === 0 ? `
+            <div class="text-center py-12 text-slate-400 text-sm">まだタイム記録が登録されていません。</div>
+          ` : `
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead class="bg-gt-card text-slate-400 text-xs uppercase border-b border-gt-border">
+                  <tr>
+                    <th class="py-2.5 px-3">順位</th>
+                    <th class="py-2.5 px-3">氏名</th>
+                    <th class="py-2.5 px-3">タイム</th>
+                    <th class="py-2.5 px-3">車種</th>
+                    <th class="py-2.5 px-3 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gt-border/60">
+                  ${ranked.map(r => `
+                    <tr class="hover:bg-white/[0.02]">
+                      <td class="py-3 px-3 font-display font-bold ${r.rank <= 3 ? 'text-amber-400' : 'text-slate-300'}">${r.rank}位</td>
+                      <td class="py-3 px-3 font-bold text-white">
+                        ${escapeHtml(r.name)}
+                        ${!r.isPersonalBest ? `<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">複数回目</span>` : ''}
+                      </td>
+                      <td class="py-3 px-3 font-mono font-bold text-gt-cyan">${formatTimeMs(r.timeMs)}</td>
+                      <td class="py-3 px-3 text-slate-300">${escapeHtml(r.car)}</td>
+                      <td class="py-3 px-3 text-right whitespace-nowrap space-x-1">
+                        <button onclick="openEditRecordModal('${r.id}')"
+                          class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold">
+                          編集
+                        </button>
+                        <button onclick="confirmDeleteRecord('${r.id}')"
+                          class="px-2.5 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-800 text-rose-300 text-xs font-bold">
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    // タブ3：生徒一覧管理 & Excelインポート
+    function renderStudentsManageTab() {
+      return `
+        <div class="bg-gt-panel border border-gt-border rounded-2xl p-5 shadow-xl space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gt-border pb-3">
+            <div>
+              <h2 class="text-base font-extrabold text-white">生徒一覧管理（現在 ${state.students.length}名）</h2>
+              <p class="text-xs text-slate-400">初期状態で添付Excelの全校生徒134名が登録済みです。追加・名前修正・別Excel読込が可能です。</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <label class="cursor-pointer px-3 py-2 rounded-xl bg-gt-cyan hover:bg-cyan-400 text-slate-950 text-xs font-extrabold transition">
+                📂 Excel読込（上書き）
+                <input type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event, 'replace')" class="hidden" />
+              </label>
+              <label class="cursor-pointer px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition">
+                ➕ Excel読込（追加）
+                <input type="file" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event, 'append')" class="hidden" />
+              </label>
+              <button onclick="resetDefaultStudents()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">
+                初期134名に戻す
+              </button>
+            </div>
+          </div>
+
+          <!-- 生徒個別追加フォーム -->
+          <div class="flex gap-2">
+            <input type="text" value="${escapeHtml(state.newStudentName)}"
+              oncompositionstart="state.isComposing = true"
+              oncompositionend="state.isComposing = false; state.newStudentName = this.value"
+              oninput="state.newStudentName = this.value"
+              placeholder="新しい生徒名を追加（例：大分　太郎）"
+              class="flex-1 bg-gt-bg border border-gt-border rounded-xl px-3.5 py-2 text-sm text-white focus:border-gt-cyan focus:outline-none" />
+            <button onclick="addSingleStudent()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold whitespace-nowrap">
+              ＋ 生徒を追加
+            </button>
+          </div>
+
+          <!-- 生徒一覧検索 -->
+          <div>
+            <input type="text" value="${escapeHtml(state.studentManageSearch)}"
+              oncompositionstart="state.isComposing = true"
+              oncompositionupdate="handleStudentManageSearch(this.value)"
+              oncompositionend="state.isComposing = false; handleStudentManageSearch(this.value)"
+              oninput="handleStudentManageSearch(this.value)"
+              onkeyup="handleStudentManageSearch(this.value)"
+              placeholder="一覧内の生徒を検索..."
+              class="w-full bg-gt-bg border border-gt-border rounded-xl px-3.5 py-2 text-sm text-white focus:border-gt-cyan focus:outline-none" />
+          </div>
+
+          <!-- 生徒リストグリッド（部分更新対象） -->
+          <div id="students-manage-grid" class="max-h-[50vh] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pr-1">
+            ${renderStudentsManageGridHTML()}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSelectedDriverBannerHTML() {
+      const currentDriver = state.selectedStudent || state.searchQuery.trim();
+      if (!currentDriver) return '';
+      const driverPastRuns = getSortedRanking().filter(r => normalizeStr(r.name) === normalizeStr(currentDriver));
+      return `
+        <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2 bg-emerald-950/40 border border-emerald-500/40 rounded-xl px-3.5 py-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-emerald-400">出走ドライバー:</span>
+            <span class="text-base font-black text-white">${escapeHtml(currentDriver)}</span>
+          </div>
+          <span class="text-xs text-slate-300">
+            これまでの記録: <strong class="text-gt-cyan">${driverPastRuns.length}回</strong>
+            ${driverPastRuns.length > 0 ? `（ベスト: ${formatTimeMs(driverPastRuns[0].timeMs)} / ${driverPastRuns[0].rank}位）` : ''}
+          </span>
+        </div>
+      `;
+    }
+
+    function renderStudentCandidatesHTML(filteredStudents) {
+      if (filteredStudents.length === 0) {
+        return `
+          <div class="text-xs text-slate-400 py-2 px-2">
+            一致する生徒が一覧にいません。「${escapeHtml(state.searchQuery)}」のまま直接登録することもできます。
+          </div>
+        `;
+      }
+      return filteredStudents.slice(0, 60).map(name => {
+        const isSelected = state.selectedStudent === name;
+        return `
+          <button type="button" onclick="selectStudent('${escapeHtml(name)}')"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${isSelected ? 'bg-gt-cyan text-slate-950 shadow-md' : 'bg-gt-card hover:bg-slate-700 text-slate-200 border border-gt-border/70'}">
+            ${escapeHtml(name)}
+          </button>
+        `;
+      }).join('') + (filteredStudents.length > 60
+        ? `<span class="text-[11px] text-slate-500 self-center px-2">他 ${filteredStudents.length - 60}名（検索で絞り込み）</span>`
+        : '');
+    }
+
+    function renderStudentsManageGridHTML() {
+      const q = normalizeStr(state.studentManageSearch);
+      const list = q
+        ? state.students.map((name, idx) => ({ name, idx })).filter(item => normalizeStr(item.name).includes(q))
+        : state.students.map((name, idx) => ({ name, idx }));
+
+      return list.map(({ name, idx }) => `
+        <div class="flex items-center justify-between bg-gt-card border border-gt-border/80 rounded-xl px-3 py-2 text-sm">
+          <span class="font-bold text-slate-100 truncate mr-2">${escapeHtml(name)}</span>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="openEditStudentModal(${idx})" class="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300">編集</button>
+            <button onclick="deleteStudent(${idx})" class="text-xs px-2 py-1 rounded bg-rose-950 hover:bg-rose-800 text-rose-300">削除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // タブ4：イベント設定・バックアップ
+    function renderSettingsTab() {
+      return `
+        <div class="bg-gt-panel border border-gt-border rounded-2xl p-5 shadow-xl space-y-5">
+          <h2 class="text-base font-extrabold text-white border-b border-gt-border pb-3">モニター表示タイトル・設定</h2>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-400 mb-1">メインタイトル（モニター上部）</label>
+              <input type="text" value="${escapeHtml(state.settings.eventTitle)}"
+                oninput="updateSetting('eventTitle', this.value)"
+                class="w-full bg-gt-bg border border-gt-border rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:border-gt-cyan focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-400 mb-1">サブタイトル / 使用コース名</label>
+              <input type="text" value="${escapeHtml(state.settings.courseName)}"
+                oninput="updateSetting('courseName', this.value)"
+                class="w-full bg-gt-bg border border-gt-border rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:border-gt-cyan focus:outline-none" />
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-gt-border space-y-3">
+            <h3 class="text-sm font-bold text-white">データのバックアップ出力</h3>
+            <p class="text-xs text-slate-400">イベント終了後の表彰や記録保存用に、現在のランキングをExcelファイルでダウンロードできます。</p>
+            <button onclick="exportRankingExcel()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold">
+              📥 現在のランキングをExcel (.xlsx) で保存
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * ============================================================================
+     * 7. インタラクションハンドラ
+     * ============================================================================
+     */
+    function switchAdminTab(tabId) {
+      state.activeTab = tabId;
+      render();
+    }
+
+    function togglePreviewPanel() {
+      state.settings.showPreview = !state.settings.showPreview;
+      saveAndBroadcast('SETTINGS_UPDATED');
+      render();
+    }
+
+    function updateSetting(key, val) {
+      state.settings[key] = val;
+      saveAndBroadcast('SETTINGS_UPDATED');
+      // 入力フォーカスを維持しつつプレビューだけ更新したい場合は部分更新も可能
+      if (state.settings.showPreview) {
+        const aside = document.querySelector('aside > div:last-child');
+        if (aside) aside.innerHTML = renderStageBoardHTML(true);
+      }
+    }
+
+    function handleStudentSearchInput(val) {
+      state.searchQuery = val;
+      // 完全一致する生徒がいれば自動選択扱い
+      const exact = state.students.find(s => normalizeStr(s) === normalizeStr(val));
+      state.selectedStudent = exact || '';
+
+      // 入力ボックス自体は再描画せず、候補リストとバッジのみDOM更新（日本語IME変換を絶対に邪魔しない）
+      const normQuery = normalizeStr(state.searchQuery);
+      const filteredStudents = normQuery
+        ? state.students.filter(s => normalizeStr(s).includes(normQuery))
+        : state.students;
+
+      const bannerEl = document.getElementById('selected-driver-banner');
+      if (bannerEl) bannerEl.innerHTML = renderSelectedDriverBannerHTML();
+
+      const listEl = document.getElementById('student-candidates-list');
+      if (listEl) listEl.innerHTML = renderStudentCandidatesHTML(filteredStudents);
+
+      const inputEl = document.getElementById('student-search-input');
+      if (inputEl) {
+        inputEl.classList.toggle('border-emerald-500', Boolean(state.selectedStudent));
+        inputEl.classList.toggle('border-gt-border', !state.selectedStudent);
+      }
+      const clearBtn = document.getElementById('clear-student-btn');
+      if (clearBtn) clearBtn.classList.toggle('hidden', !state.selectedStudent);
+
+      const clearXBtn = document.getElementById('clear-search-x-btn');
+      if (clearXBtn) clearXBtn.classList.toggle('hidden', !state.searchQuery);
+    }
+
+    function handleStudentSearchKeydown(e, val) {
+      if (e.key === 'Enter') {
+        // IME変換確定のEnterまたは検索枠内でのEnterでフォームが誤送信されるのを防ぐ
+        e.preventDefault();
+        state.isComposing = false;
+        handleStudentSearchInput(val);
+        // 候補が1人だけに絞り込まれていれば自動選択してタイム入力欄へ移動
+        const normQuery = normalizeStr(val);
+        if (normQuery) {
+          const matches = state.students.filter(s => normalizeStr(s).includes(normQuery));
+          if (matches.length === 1) {
+            selectStudent(matches[0]);
+          }
+        }
+      }
+    }
+
+    function handleStudentManageSearch(val) {
+      state.studentManageSearch = val;
+      const gridEl = document.getElementById('students-manage-grid');
+      if (gridEl) {
+        gridEl.innerHTML = renderStudentsManageGridHTML();
+      }
+    }
+
+    function selectStudent(name) {
+      state.selectedStudent = name;
+      state.searchQuery = name;
+      render();
+      const minEl = document.getElementById('time-min-input');
+      if (minEl) minEl.focus();
+    }
+
+    function clearSelectedStudent() {
+      state.selectedStudent = '';
+      state.searchQuery = '';
+      render();
+      const searchEl = document.getElementById('student-search-input');
+      if (searchEl) searchEl.focus();
+    }
+
+    function handleTimePartInput(part, inputEl) {
+      const digits = inputEl.value.replace(/\D/g, '');
+      inputEl.value = digits;
+      if (part === 'min') {
+        state.minInput = digits;
+        if (digits.length >= 1) {
+          const secEl = document.getElementById('time-sec-input');
+          if (secEl) secEl.focus();
+        }
+      } else if (part === 'sec') {
+        state.secInput = digits;
+        if (digits.length >= 2) {
+          const msEl = document.getElementById('time-ms-input');
+          if (msEl) msEl.focus();
+        }
+      } else if (part === 'ms') {
+        state.msInput = digits;
+        if (digits.length >= 3) {
+          const carEl = document.getElementById('car-model-input');
+          if (carEl) carEl.focus();
+        }
+      }
+    }
+
+    function pickRecentCar(carName) {
+      state.carInput = carName;
+      const carEl = document.getElementById('car-model-input');
+      if (carEl) carEl.value = carName;
+    }
+
+    function addSingleStudent() {
+      const name = state.newStudentName.trim();
+      if (!name) return;
+      if (state.students.includes(name)) {
+        showToast('すでに同じ名前の生徒が登録されています', 'error');
+        return;
+      }
+      state.students.unshift(name);
+      state.newStudentName = '';
+      saveAndBroadcast('STUDENTS_UPDATED');
+      showToast(`${name} を生徒一覧に追加しました`, 'success');
+      render();
+    }
+
+    function openEditStudentModal(idx) {
+      const currentName = state.students[idx];
+      if (currentName === undefined) return;
+      openModal(`
+        <h3 class="text-lg font-bold text-white mb-3">生徒名の修正</h3>
+        <input id="edit-student-input" type="text" value="${escapeHtml(currentName)}"
+          class="w-full bg-gt-bg border border-gt-border rounded-xl px-3.5 py-2.5 text-white mb-4 focus:border-gt-cyan focus:outline-none" />
+        <div class="flex justify-end gap-2">
+          <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm font-bold">キャンセル</button>
+          <button onclick="saveEditedStudent(${idx})" class="px-4 py-2 rounded-xl bg-gt-cyan text-slate-950 text-sm font-bold">保存</button>
+        </div>
+      `);
+    }
+
+    function saveEditedStudent(idx) {
+      const val = document.getElementById('edit-student-input').value.trim();
+      if (!val) return;
+      state.students[idx] = val;
+      saveAndBroadcast('STUDENTS_UPDATED');
+      closeModal();
+      showToast('生徒名を更新しました', 'success');
+      render();
+    }
+
+    function deleteStudent(idx) {
+      const removed = state.students.splice(idx, 1);
+      saveAndBroadcast('STUDENTS_UPDATED');
+      showToast(`${removed[0]} を一覧から削除しました`, 'info');
+      render();
+    }
+
+    function resetDefaultStudents() {
+      state.students = [...DEFAULT_STUDENTS];
+      saveAndBroadcast('STUDENTS_UPDATED');
+      showToast('添付Excelの初期生徒データ（134名）に復元しました', 'success');
+      render();
+    }
+
+    // 全体レンダリング
+    function render() {
+      const appEl = document.getElementById('app');
+      if (!appEl) return;
+      if (isStageMode) {
+        document.title = 'LIVE RANKING // モニター表示画面';
+        appEl.innerHTML = renderStageBoardHTML(false);
+      } else {
+        appEl.innerHTML = renderAdminView();
+      }
+    }
+
+    // 初期化実行
+    window.addEventListener('DOMContentLoaded', () => {
+      render();
+    });
+  </script>
+</body>
+
+</html>

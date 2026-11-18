@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>学校イベント クイズ大会プレゼンシステム</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (Excel読み込み用) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Google Fonts (Noto Sans JP & Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@600;800;900&family=Noto+Sans+JP:wght@500;700;900&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            user-select: none;
+        }
+
+        /* 演出用アニメーション */
+        @keyframes popIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.7) translateY(20px);
+            }
+
+            70% {
+                opacity: 1;
+                transform: scale(1.05) translateY(-4px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .animate-pop-in {
+            animation: popIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        @keyframes dramaticReveal {
+            0% {
+                opacity: 0;
+                transform: scale(1.6);
+                filter: brightness(2.5) blur(8px);
+            }
+
+            60% {
+                opacity: 1;
+                transform: scale(0.96);
+                filter: brightness(1.3) blur(0px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                filter: brightness(1) blur(0px);
+            }
+        }
+
+        .animate-dramatic {
+            animation: dramaticReveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes flashScreen {
+            0% {
+                opacity: 0.95;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .animate-flash {
+            animation: flashScreen 0.8s ease-out forwards;
+        }
+
+        /* スライド切り替えアニメーション（進む・戻る方向対応） */
+        @keyframes slideEnterNext {
+            0% {
+                opacity: 0;
+                transform: translateX(48px) scale(0.985);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+
+        @keyframes slideEnterPrev {
+            0% {
+                opacity: 0;
+                transform: translateX(-48px) scale(0.985);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+        }
+
+        .animate-slide-next {
+            animation: slideEnterNext 0.36s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .animate-slide-prev {
+            animation: slideEnterPrev 0.36s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* 問題文・見出しのふわっと時間差表示 */
+        @keyframes contentStaggerUp {
+            0% {
+                opacity: 0;
+                transform: translateY(16px) scale(0.98);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .animate-stagger-1 {
+            opacity: 0;
+            animation: contentStaggerUp 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
+        }
+
+        .animate-stagger-2 {
+            opacity: 0;
+            animation: contentStaggerUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) 0.13s forwards;
+        }
+
+        /* 見出しの自然な改行・中央揃え保証 */
+        .headline-balanced {
+            word-break: normal;
+            overflow-wrap: break-word;
+            text-align: center;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @keyframes pulseBeat {
+
+            0%,
+            100% {
+                transform: scale(1);
+                box-shadow: inset 0 0 0px rgba(250, 204, 21, 0);
+            }
+
+            50% {
+                transform: scale(1.015);
+                box-shadow: inset 0 0 90px rgba(250, 204, 21, 0.55);
+            }
+        }
+
+        .animate-drumroll-visual {
+            animation: pulseBeat 0.35s infinite ease-in-out;
+        }
+
+        /* 集中線風エフェクト */
+        .speed-lines {
+            background: repeating-conic-gradient(from 0deg,
+                    rgba(255, 255, 255, 0.16) 0deg 2deg,
+                    transparent 2deg 8deg);
+            mask-image: radial-gradient(circle, transparent 35%, black 75%);
+            -webkit-mask-image: radial-gradient(circle, transparent 35%, black 75%);
+            animation: spinSlow 12s linear infinite;
+        }
+
+        @keyframes spinSlow {
+            from {
+                transform: rotate(0deg) scale(1.5);
+            }
+
+            to {
+                transform: rotate(360deg) scale(1.5);
+            }
+        }
+
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* プレビュー縮小用 */
+        .preview-stage-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            background: #090d16;
+        }
+
+        .preview-stage-inner {
+            width: 1280px;
+            height: 720px;
+            transform-origin: top left;
+            pointer-events: none;
+        }
+
+        /* QUIZ ARENA: event-ready controller and projector theme */
+        :root { color-scheme: dark; --arena-ink: #172a31; --arena-teal: #0d766d; --arena-mint: #9ce0c6; --arena-paper: #f2f0e8; --arena-orange: #ed8055; }
+        #controller-app { background: var(--arena-paper) !important; color: var(--arena-ink) !important; }
+        #controller-app > header { background: #172a31 !important; border-color: #29434a !important; padding: 12px 20px !important; }
+        #controller-app > header > div:first-child > div:first-child { background: var(--arena-teal) !important; border-radius: 8px 8px 8px 2px !important; letter-spacing: .08em; }
+        #controller-app > header h1 { letter-spacing: .015em; }
+        #controller-app > header button, #controller-app > header label { border-radius: 7px !important; }
+        #controller-app > div > aside { background: #e7e5dc !important; border-color: #d1d0c7 !important; padding: 16px !important; }
+        #preview-container { border: 1px solid #b9c5be !important; border-radius: 10px !important; box-shadow: 0 10px 28px rgba(27,49,46,.12) !important; }
+        #controller-app aside .bg-slate-900, #controller-app aside .bg-slate-900/90 { background: #f7f6f1 !important; border-color: #d5d7ce !important; }
+        #controller-app aside .text-white, #controller-app aside .text-slate-200, #controller-app aside .text-slate-300 { color: #24383b !important; }
+        #controller-app aside .text-slate-400, #controller-app aside .text-slate-500 { color: #647574 !important; }
+        #controller-app aside .bg-slate-800 { background: #dfe3dc !important; color: #24383b !important; border-color: #c7d0c9 !important; }
+        #controller-app aside .bg-slate-800:hover { background: #d2ddd5 !important; }
+        #controller-app aside .bg-slate-900/90 { background: #f7f6f1 !important; }
+        #controller-app main { background: #f5f4ee !important; }
+        #controller-app main > div:first-child { background: #ebe9e0 !important; border-color: #d8d6cc !important; }
+        #controller-app main > div:first-child span { color: #354a4b !important; }
+        #next-slide-banner { background: #dcebe3 !important; border-color: #bfd7ca !important; }
+        #next-slide-info { color: #24584f !important; }
+        #slides-grid { background: #f5f4ee !important; }
+        #slides-grid > div { background: #fffefa !important; border-color: #d8d9d0 !important; border-radius: 12px !important; box-shadow: 0 3px 10px rgba(34,53,49,.055); }
+        #slides-grid > div:hover { border-color: #71a99b !important; box-shadow: 0 8px 20px rgba(34,53,49,.12); }
+        #slides-grid h3 { color: #203638 !important; }
+        #slides-grid p { color: #63706d !important; }
+        #slides-grid .border-t { border-color: #e4e4dc !important; }
+        #slides-grid button { border-radius: 6px !important; }
+        #projector-app { background: #101f24 !important; }
+        #projector-stage { background: #101f24; }
+        .slide-question { width:100%; height:100%; box-sizing:border-box; display:flex; flex-direction:column; padding:clamp(24px,3.4vw,58px) clamp(26px,4.2vw,72px) clamp(18px,2.5vw,42px); color:#f8f5ec; background:radial-gradient(ellipse at 50% 45%, #20373b 0%, #13272d 52%, #0e1c21 100%); position:relative; overflow:hidden; }
+        .slide-question::before { content:""; position:absolute; inset:14px; border:1px solid rgba(166,210,192,.22); border-radius:18px; pointer-events:none; }
+        .slide-question-header { display:flex; align-items:center; justify-content:space-between; gap:20px; position:relative; z-index:1; flex:none; }
+        .question-round { background:#d8eee3; color:#173d3a; border-radius:6px 16px 6px 6px; padding:12px 24px; font-size:clamp(22px,2.2vw,36px); font-weight:900; letter-spacing:.03em; box-shadow:0 6px 24px rgba(0,0,0,.15); }
+        .slide-question-final .question-round { background:#f7d7c7; color:#542f27; }
+        .question-stage-label { color:#a5bbb3; font:700 clamp(13px,1.2vw,20px)/1.2 Inter,sans-serif; letter-spacing:.16em; }
+        .question-frame { flex:1; min-height:0; width:100%; display:flex; justify-content:center; align-items:center; padding:clamp(22px,4.8vw,78px) clamp(10px,2.5vw,40px); box-sizing:border-box; }
+        .question-text { width:min(100%,1450px); max-height:100%; margin:0 auto; color:#fbfaf5; font-weight:850; line-height:1.34; letter-spacing:.015em; text-align:center; text-wrap:balance; white-space:pre-line; overflow-wrap:anywhere; word-break:normal; line-break:strict; }
+        .question-footer { display:flex; justify-content:space-between; color:#75918a; font:700 12px/1 Inter,sans-serif; letter-spacing:.2em; position:relative; z-index:1; }
+        .slide-question-final { background:radial-gradient(ellipse at 50% 45%, #3d2928 0%, #261f25 52%, #17191f 100%); }
+        .ranking-title-slide { width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:center; padding:8vw; text-align:center; color:#fffaf0; background:radial-gradient(ellipse at 50% 50%, #315b55 0%, #173d3c 48%, #102629 100%); }
+        .ranking-title-inner { width:min(100%,1320px); margin:auto; display:flex; flex-direction:column; align-items:center; gap:30px; }
+        .ranking-title-kicker { color:#b9ead2; font-size:clamp(28px,4vw,64px); font-weight:900; letter-spacing:.12em; margin:0; }
+        .ranking-title-final { background:radial-gradient(ellipse at 50% 50%, #674330 0%, #422c2c 48%, #201f26 100%); }
+        .ranking-title-rule { width:90px; height:5px; border-radius:9px; background:#f3b76d; }
+        .ranking-title-main { color:#fffaf0; font-size:clamp(54px,7vw,112px); line-height:1.22; font-weight:900; margin:0; white-space:pre-line; text-wrap:balance; text-align:center; }
+        @media (max-width:900px) { .question-stage-label { letter-spacing:.08em; } .question-frame { padding:20px 10px; } #controller-app>div>aside { max-height:48vh; } }
+        @media (prefers-reduced-motion: reduce) { .animate-slide-next,.animate-slide-prev,.animate-dramatic,.animate-pop-in { animation-duration:.01ms !important; } }
+
+
+        .ranking-card { min-height:54px; transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+        .rank-card-first { background:linear-gradient(105deg,#f4c65e 0%,#fff0b2 35%,#d99e32 100%) !important; border:2px solid #fff0b2 !important; box-shadow:0 0 0 2px rgba(249,201,89,.35),0 8px 26px rgba(227,169,48,.28) !important; }
+        .rank-card-first .rank-name { color:#30240d !important; font-size:clamp(20px,1.55vw,28px) !important; font-weight:900 !important; }
+        .rank-card-first .rank-score { color:#54380c !important; font-size:clamp(20px,1.55vw,28px) !important; }
+        .rank-badge-first { width:46px !important; height:46px !important; display:flex; flex-direction:column; gap:0; align-items:center; justify-content:center; border-radius:12px !important; background:#8b5a11 !important; color:#fff4c8 !important; font-size:13px !important; line-height:1; }
+        .rank-badge-first i { font-size:13px; margin-bottom:3px; }
+        .rank-card-second { background:linear-gradient(105deg,#dce3e8 0%,#f8fafb 42%,#aebbc4 100%) !important; border:2px solid #eef2f5 !important; box-shadow:0 5px 17px rgba(190,205,214,.18) !important; }
+        .rank-card-second .rank-name,.rank-card-second .rank-score { color:#26323a !important; }
+        .rank-badge-second { background:#697780 !important; color:#fff !important; }
+        .rank-card-third { background:linear-gradient(105deg,#d99162 0%,#f2c09a 42%,#a95833 100%) !important; border:2px solid #f0bf96 !important; box-shadow:0 5px 17px rgba(193,116,71,.2) !important; }
+        .rank-card-third .rank-name,.rank-card-third .rank-score { color:#3d2117 !important; }
+        .rank-badge-third { background:#8e472b !important; color:#fff2e8 !important; }
+        .hidden { display:none !important; }
+        #projector-app { position:fixed; inset:0; z-index:10; width:100vw; height:100vh; }
+        #projector-stage { width:100%; height:100%; display:flex; align-items:stretch; justify-content:stretch; }
+        .ranking-countdown-slide { width:100%; height:100%; box-sizing:border-box; display:flex; flex-direction:column; padding:clamp(22px,3vw,44px); overflow:hidden; color:#fff; background:radial-gradient(ellipse at 50% 42%,#231c43 0%,#14172b 55%,#0c1220 100%) !important; }
+        .countdown-heading { flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:12px; margin:4px 0 clamp(24px,4vw,58px); }
+        .countdown-title { display:flex; align-items:center; justify-content:center; gap:16px; color:#f8c744 !important; font-size:clamp(32px,3.5vw,54px) !important; line-height:1.15; font-weight:900; letter-spacing:.05em; margin:0; }
+        .countdown-title i { font-size:.9em; }
+        .countdown-progress { display:inline-flex; align-items:center; padding:7px 20px; border:1px solid #384357 !important; border-radius:999px; background:rgba(12,20,36,.75) !important; color:#cdd7e5 !important; font-size:clamp(16px,1.35vw,22px) !important; font-weight:800; }
+        .countdown-columns { flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; gap:clamp(18px,2vw,32px); }
+        .countdown-column { min-width:0; display:flex; flex-direction:column; gap:clamp(10px,1.25vh,14px); }
+        .top-rank-card { box-sizing:border-box; width:100%; max-width:100%; min-width:0; min-height:clamp(68px,8.5vh,88px); overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 20px; border:2px solid #3b4384 !important; border-radius:20px; color:#fff; background:rgba(15,24,43,.95) !important; transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease; }
+        .top-rank-card > div:first-child { flex:1; min-width:0; display:flex; align-items:center; gap:16px; }
+        .top-rank-hidden { border-color:#303a5c !important; background:rgba(12,19,35,.88) !important; color:#74809a !important; }
+        .top-rank-revealed { border-color:#464b99 !important; background:linear-gradient(110deg,rgba(30,38,69,.98),rgba(18,27,49,.96)) !important; }
+        .top-rank-badge { box-sizing:border-box; width:auto !important; min-width:66px !important; height:58px !important; padding:0 10px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; white-space:nowrap; border-radius:14px; background:#5145e5 !important; color:#fff !important; font-size:clamp(21px,1.8vw,29px) !important; font-weight:900; }
+        .top-rank-badge-double { min-width:88px !important; font-size:20px !important; }
+        .top-rank-score { flex:0 0 auto; color:#f8c744 !important; font-size:clamp(20px,1.9vw,30px) !important; font-weight:900; white-space:nowrap; }
+        .top-rank-name { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff !important; font-size:clamp(23px,2.2vw,35px) !important; font-weight:900; }
+        .top-rank-latest { animation: topRankReveal .55s cubic-bezier(.22,1,.36,1) both; }
+        @keyframes topRankReveal { from { opacity:.55; transform:scale(.975); } to { opacity:1; transform:scale(1); } }
+        .top-rank-one { background:linear-gradient(105deg,rgba(192,129,25,.48),rgba(255,224,138,.18) 48%,rgba(165,106,20,.4)) !important; border:3px solid #f6c955 !important; box-shadow:0 0 0 2px rgba(247,201,85,.16),0 0 30px rgba(248,196,62,.28),inset 0 0 28px rgba(248,196,62,.08) !important; padding-top:14px !important; padding-bottom:14px !important; }
+        .top-rank-one .top-rank-badge { min-width:68px !important; height:64px !important; border-radius:17px !important; background:linear-gradient(145deg,#ffe998,#e9a921) !important; color:#4f3105 !important; font-size:19px !important; box-shadow:0 4px 17px rgba(248,202,91,.38); }
+        .top-rank-one .top-rank-badge-double { min-width:88px !important; }
+        .top-rank-one .top-rank-name { flex:1; min-width:0; font-size:clamp(32px,3.1vw,48px) !important; color:#fff7df !important; text-shadow:0 2px 15px rgba(255,211,91,.22); }
+        .top-rank-one .top-rank-score { font-size:clamp(26px,2.3vw,40px) !important; color:#ffdf83 !important; }
+        .top-rank-two { border-color:#d6e0e8 !important; background:linear-gradient(100deg,rgba(191,208,218,.17),rgba(239,245,248,.07)) !important; box-shadow:0 0 17px rgba(202,220,230,.1); padding-top:12px !important; padding-bottom:12px !important; }
+        .top-rank-two .top-rank-badge { background:linear-gradient(145deg,#f3f6f8,#acbac3) !important; color:#26333a !important; }
+        .top-rank-two .top-rank-name { font-size:40px !important; }
+        .top-rank-three { border-color:#c88356 !important; background:linear-gradient(100deg,rgba(177,101,58,.22),rgba(212,143,93,.08)) !important; box-shadow:0 0 16px rgba(212,143,93,.1); padding-top:12px !important; padding-bottom:12px !important; }
+        .top-rank-three .top-rank-badge { background:linear-gradient(145deg,#e0a071,#a75534) !important; color:#fff5ed !important; }
+        .top-rank-three .top-rank-name { font-size:38px !important; }
+        @media (max-height:760px) { .ranking-card { min-height:48px; } .rank-card-first .rank-name,.rank-card-first .rank-score { font-size:20px !important; } .top-rank-one { padding-top:8px !important; padding-bottom:8px !important; } }
+
+
+        html, body { margin:0 !important; width:100%; height:100%; overflow:hidden; }
+        #projector-app { position:fixed !important; inset:0 !important; z-index:10 !important; width:100vw !important; height:100vh !important; min-height:100vh !important; }
+        #projector-stage { position:absolute !important; inset:0 !important; width:100% !important; height:100% !important; }
+        .ranking-countdown-slide { position:absolute; inset:0; width:auto; height:auto; }
+
+
+        /* Reserve vertical breathing room for oversized podium names. */
+        .top-rank-one,.top-rank-two,.top-rank-three { overflow:visible !important; }
+        .top-rank-one { min-height:112px !important; padding-top:17px !important; padding-bottom:17px !important; }
+        .top-rank-one .top-rank-badge { height:70px !important; }
+        .top-rank-one .top-rank-name { line-height:1.22 !important; padding-block:2px; }
+        .top-rank-two,.top-rank-three { min-height:102px !important; padding-top:16px !important; padding-bottom:16px !important; }
+        .top-rank-two .top-rank-badge,.top-rank-three .top-rank-badge { height:64px !important; }
+        .top-rank-two .top-rank-name,.top-rank-three .top-rank-name { line-height:1.22 !important; padding-block:2px; }
+        @media (max-height:820px) {
+          .top-rank-one { min-height:96px !important; padding-top:10px !important; padding-bottom:10px !important; }
+          .top-rank-one .top-rank-badge { height:64px !important; }
+          .top-rank-one .top-rank-name { font-size:clamp(29px,2.8vw,42px) !important; line-height:1.16 !important; }
+          .top-rank-two,.top-rank-three { min-height:90px !important; padding-top:8px !important; padding-bottom:8px !important; }
+          .top-rank-two .top-rank-badge,.top-rank-three .top-rank-badge { height:58px !important; }
+          .top-rank-two .top-rank-name { font-size:36px !important; line-height:1.16 !important; }
+          .top-rank-three .top-rank-name { font-size:34px !important; line-height:1.16 !important; }
+        }
+
+    </style>
+</head>
+
+<body class="bg-slate-900 text-slate-100 h-screen overflow-hidden flex flex-col">
+
+    <!-- ==================== 司会者用コントロール画面 ==================== -->
+    <div id="controller-app" class="hidden flex-col h-full w-full">
+        <!-- トップヘッダー（Excelインポート・スライド追加・モニター起動・PWA） -->
+        <header
+            class="bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 text-white p-2 rounded-lg font-black text-sm tracking-wider shadow">
+                    <i class="fa-solid fa-trophy mr-1"></i>QUIZ LIVE
+                </div>
+                <div>
+                    <h1 class="font-bold text-sm sm:text-base text-white leading-tight">クイズ大会 司会者コントローラー</h1>
+                    <p class="text-[11px] text-slate-400">完全オフライン2画面同期 / 自動保存ON</p>
+                </div>
+            </div>
+
+            <!-- Excel インポート＆ガイドボタン群 -->
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button onclick="openExcelGuideModal()"
+                    class="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 text-xs font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-excel"></i> Excel形式ガイド・サンプル
+                </button>
+
+                <label
+                    class="cursor-pointer bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-upload"></i> 予選問題読込
+                    <input type="file" accept=".xlsx,.xls,.csv" class="hidden"
+                        onchange="handleExcelImport(event, 'prelim_q')" />
+                </label>
+
+                <label
+                    class="cursor-pointer bg-sky-700/80 hover:bg-sky-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-upload"></i> 決勝問題読込
+                    <input type="file" accept=".xlsx,.xls,.csv" class="hidden"
+                        onchange="handleExcelImport(event, 'final_q')" />
+                </label>
+
+                <label
+                    class="cursor-pointer bg-purple-700/80 hover:bg-purple-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-users"></i> 生徒成績読込
+                    <input type="file" accept=".xlsx,.xls,.csv" class="hidden"
+                        onchange="handleExcelImport(event, 'students')" />
+                </label>
+
+                <div class="h-5 w-px bg-slate-700 mx-1"></div>
+
+                <!-- PWAファイル生成ボタン -->
+                <button onclick="openPwaModal()"
+                    class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-700 transition"
+                    title="オフラインアプリ(PWA)用ファイル出力">
+                    <i class="fa-solid fa-download mr-1"></i>PWA化
+                </button>
+
+                <!-- 発表用ウィンドウ起動ボタン -->
+                <button onclick="openProjectorWindow()"
+                    class="bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-500 hover:to-orange-400 text-white text-xs sm:text-sm font-black px-3.5 py-1.5 rounded-lg shadow-lg shadow-rose-600/30 transition flex items-center gap-2">
+                    <i class="fa-solid fa-display"></i> 発表用画面を開く（別窓）
+                </button>
+            </div>
+        </header>
+
+        <!-- メイン2ペインレイアウト（添付画像の構成：左操作パネル ＋ 右スライド一覧） -->
+        <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- 【左カラム】左上：ライブプレビュー / 左中：進行ボタン / 左下：視覚演出丸ボタン -->
+            <aside
+                class="w-full lg:w-[400px] xl:w-[440px] bg-slate-950/90 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 flex flex-col justify-between gap-3 shrink-0 overflow-y-auto">
+
+                <!-- 1. 左上：みんなに見せる画面（リアルタイムミラーリング） -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                            現在投影中の画面（生徒モニター）
+                        </span>
+                        <span id="projector-status-badge"
+                            class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                            未接続（別窓を開いてください）
+                        </span>
+                    </div>
+
+                    <div id="preview-container"
+                        class="preview-stage-wrapper rounded-xl border-2 border-slate-700 shadow-2xl">
+                        <div id="preview-stage" class="preview-stage-inner"></div>
+                    </div>
+
+                    <!-- 現在のスライド情報＆特別コントロール（TOP10段階めくり用） -->
+                    <div class="mt-2 bg-slate-900 border border-slate-800 rounded-lg p-2.5">
+                        <div class="flex items-center justify-between">
+                            <span id="current-slide-label" class="text-xs font-bold text-indigo-400">スライド 1 / 10</span>
+                            <button onclick="openEditModal(state.currentIndex)"
+                                class="text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded">
+                                <i class="fa-solid fa-pen-to-square mr-1"></i>この画面を編集
+                            </button>
+                        </div>
+                        <p id="current-slide-title-preview" class="text-sm font-bold text-white truncate mt-1">タイトル</p>
+
+                        <!-- TOP10カウントダウン専用操作パネル -->
+                        <div id="top10-control-box" class="hidden mt-2 pt-2 border-t border-slate-800">
+                            <div class="flex items-center justify-between text-xs text-amber-300 font-bold mb-1.5">
+                                <span><i class="fa-solid fa-ranking-star mr-1"></i>1人ずつ発表モード</span>
+                                <span id="top10-progress-text">残り 10 人</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="revealNextRank()" id="btn-reveal-next"
+                                    class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-2 px-3 rounded-lg text-xs shadow transition">
+                                    <i class="fa-solid fa-bolt mr-1"></i>次の順位を発表する！
+                                </button>
+                                <button onclick="resetRevealRank()"
+                                    class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 px-2.5 rounded-lg text-xs"
+                                    title="発表状態をリセット">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 左中：前へ・次へスライド移動ボタン（添付画像の2つの横長ボタン） -->
+                <div class="grid grid-cols-2 gap-3 my-1">
+                    <button onclick="prevSlide()"
+                        class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-white font-black py-4 px-4 rounded-xl border border-slate-600 shadow-lg transition flex items-center justify-center gap-2 text-base">
+                        <i class="fa-solid fa-backward-step"></i> 前へ
+                    </button>
+                    <button onclick="nextSlide()"
+                        class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black py-4 px-4 rounded-xl border border-indigo-400 shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2 text-base">
+                        次へ <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+
+                <!-- 3. 左下：視覚演出エフェクトボタン（添付画像の3つの丸ボタン＋α） -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
+                    <div class="text-[11px] font-bold text-slate-400 mb-2.5 flex items-center justify-between">
+                        <span><i
+                                class="fa-solid fa-wand-magic-sparkles text-amber-400 mr-1"></i>視覚演出エフェクト（音なし・画面演出）</span>
+                        <span class="text-[10px] text-slate-500">プロジェクターに即時発動</span>
+                    </div>
+                    <div class="flex items-center justify-around gap-2">
+                        <!-- 丸ボタン1：紙吹雪 -->
+                        <button onclick="triggerEffect('confetti')" class="group flex flex-col items-center gap-1">
+                            <div
+                                class="w-16 h-16 rounded-full bg-gradient-to-br from-pink-500 via-amber-400 to-emerald-400 p-0.5 shadow-lg group-hover:scale-105 group-active:scale-95 transition">
+                                <div
+                                    class="w-full h-full rounded-full bg-slate-900 group-hover:bg-slate-800 flex items-center justify-center text-2xl">
+                                    🎉
+                                </div>
+                            </div>
+                            <span class="text-[11px] font-bold text-slate-300">紙吹雪</span>
+                        </button>
+
+                        <!-- 丸ボタン2：フラッシュ＆集中線 -->
+                        <button onclick="triggerEffect('flash')" class="group flex flex-col items-center gap-1">
+                            <div
+                                class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 p-0.5 shadow-lg group-hover:scale-105 group-active:scale-95 transition">
+                                <div
+                                    class="w-full h-full rounded-full bg-slate-900 group-hover:bg-slate-800 flex items-center justify-center text-2xl">
+                                    ⚡
+                                </div>
+                            </div>
+                            <span class="text-[11px] font-bold text-slate-300">閃光・集中線</span>
+                        </button>
+
+                        <!-- 丸ボタン3：ドラムロール風パルス（トグル） -->
+                        <button onclick="toggleDrumrollVisual()" id="btn-drumroll"
+                            class="group flex flex-col items-center gap-1">
+                            <div id="drumroll-ring"
+                                class="w-16 h-16 rounded-full bg-gradient-to-br from-amber-500 to-red-600 p-0.5 shadow-lg group-hover:scale-105 group-active:scale-95 transition">
+                                <div
+                                    class="w-full h-full rounded-full bg-slate-900 group-hover:bg-slate-800 flex items-center justify-center text-2xl">
+                                    🥁
+                                </div>
+                            </div>
+                            <span id="drumroll-label" class="text-[11px] font-bold text-slate-300">ドキドキ枠</span>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 【右メインエリア】スライド一覧・並べ替え・編集・追加（添付画像の右側の四角群） -->
+            <main class="flex-1 flex flex-col bg-slate-900 overflow-hidden">
+                <!-- スライド追加・管理ツールバー -->
+                <div
+                    class="bg-slate-800/80 border-b border-slate-700 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="text-xs font-bold text-slate-300 mr-1"><i
+                                class="fa-solid fa-plus-circle text-indigo-400 mr-1"></i>ページ追加:</span>
+                        <button onclick="addSlide('opening')"
+                            class="bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition">
+                            ＋ オープニング
+                        </button>
+                        <button onclick="addSlide('question_prelim')"
+                            class="bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition">
+                            ＋ 予選問題
+                        </button>
+                        <button onclick="addSlide('question_final')"
+                            class="bg-sky-600/90 hover:bg-sky-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition">
+                            ＋ 決勝問題
+                        </button>
+                        <button onclick="addRankingSet('all')"
+                            class="bg-amber-600/90 hover:bg-amber-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition"
+                            title="タイトル画面＋一斉発表画面の2枚セットを追加">
+                            ＋ 上位30人発表 (2枚セット)
+                        </button>
+                        <button onclick="addRankingSet('countdown')"
+                            class="bg-rose-600/90 hover:bg-rose-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition"
+                            title="タイトル画面＋1人ずつ発表画面の2枚セットを追加">
+                            ＋ TOP10発表 (2枚セット)
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="openStudentsModal()"
+                            class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-2.5 py-1.5 rounded-lg transition">
+                            <i class="fa-solid fa-list-ol mr-1"></i>生徒データ確認・編集 (<span
+                                id="student-count-badge">0</span>名)
+                        </button>
+                        <button onclick="confirmResetData()"
+                            class="text-xs text-slate-400 hover:text-rose-400 px-2 py-1.5 rounded transition"
+                            title="初期サンプルデータに戻す">
+                            <i class="fa-solid fa-trash-can"></i> 初期化
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 次スライドハイライトバナー -->
+                <div id="next-slide-banner"
+                    class="bg-indigo-950/60 border-b border-indigo-800/60 px-4 py-2 flex items-center justify-between text-xs shrink-0">
+                    <div class="flex items-center gap-2 truncate">
+                        <span
+                            class="bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded text-[11px] shrink-0">NEXT
+                            ▶</span>
+                        <span id="next-slide-info" class="text-indigo-200 font-bold truncate">次のスライド: 予選 第1問</span>
+                    </div>
+                    <span class="text-slate-400 hidden sm:inline shrink-0">カードをクリックで即ジャンプ / ←→キーで移動</span>
+                </div>
+
+                <!-- スライドカードグリッド一覧 -->
+                <div id="slides-grid"
+                    class="flex-1 overflow-y-auto p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 content-start">
+                    <!-- JSで動的にカード生成 -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ==================== 生徒向け発表プロジェクター画面（別ウィンドウ用） ==================== -->
+    <div id="projector-app"
+        class="hidden w-screen h-screen bg-[#070b14] text-white overflow-hidden relative select-none">
+        <!-- 視覚エフェクト用レイヤー -->
+        <div id="effect-speedlines" class="hidden fixed inset-0 pointer-events-none z-20 speed-lines"></div>
+        <div id="effect-flash-overlay" class="hidden fixed inset-0 bg-white pointer-events-none z-30"></div>
+        <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-40"></canvas>
+
+        <!-- メイン投影ステージ -->
+        <div id="projector-stage" class="w-full h-full relative z-10 flex flex-col justify-center items-center">
+            <!-- JSでスライド描画 -->
+        </div>
+
+        <!-- フルスクリーン案内（マウスを動かした時だけ一瞬表示） -->
+        <div id="projector-hud"
+            class="fixed bottom-4 right-4 z-50 opacity-0 hover:opacity-100 transition-opacity duration-300 flex gap-2">
+            <button onclick="toggleFullScreen()"
+                class="bg-slate-800/80 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg border border-slate-600 backdrop-blur">
+                <i class="fa-solid fa-expand mr-1"></i>全画面切替 (F11)
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== モーダル群 ==================== -->
+    <!-- 1. スライド編集モーダル -->
+    <div id="edit-modal"
+        class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-black text-white"><i
+                        class="fa-solid fa-pen-to-square text-indigo-400 mr-2"></i>スライド内容の編集</h2>
+                <button onclick="closeModal('edit-modal')" class="text-slate-400 hover:text-white text-xl"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">見出し・ラベル（例：予選 第1問 / 予選結果発表！）</label>
+                    <input type="text" id="edit-title"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-bold focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div id="edit-body-group">
+                    <label class="block text-xs font-bold text-slate-400 mb-1">メインテキスト・問題文・サブタイトル</label>
+                    <textarea id="edit-body" rows="4"
+                        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white font-bold focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+                <div id="edit-limit-group" class="hidden">
+                    <label class="block text-xs font-bold text-amber-400 mb-1">発表人数（例：上位30人なら「30」、TOP10なら「10」）</label>
+                    <input type="number" id="edit-limit" min="1" max="200"
+                        class="w-32 bg-slate-800 border border-amber-500/50 rounded-lg px-3 py-2 text-white font-bold focus:outline-none focus:border-amber-400" />
+                    <p class="text-[11px] text-slate-400 mt-1">※セットになっているタイトル画面の人数表記も自動連動できます。</p>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button onclick="closeModal('edit-modal')"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold">キャンセル</button>
+                <button onclick="saveSlideEdit()"
+                    class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-black shadow">保存して反映</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Excel形式ガイド＆サンプルダウンロードモーダル -->
+    <div id="excel-guide-modal"
+        class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-black text-white"><i
+                        class="fa-solid fa-file-excel text-emerald-400 mr-2"></i>Excelデータの作り方ガイド</h2>
+                <button onclick="closeModal('excel-guide-modal')" class="text-slate-400 hover:text-white text-xl"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="space-y-5 text-sm text-slate-300">
+                <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-black text-emerald-400">① 予選問題・決勝問題用 Excel（問題文のみ）</h3>
+                        <button onclick="downloadSampleCSV('questions')"
+                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-lg">
+                            <i class="fa-solid fa-download mr-1"></i>問題サンプルCSV取得
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-2">
+                        1列目（A列）に問題文を縦に並べてください。1行目が「問題文」などの見出しでも自動でスキップして読み込みます。（選択肢や答えの列があっても無視して問題文だけ取得します）</p>
+                    <table class="w-full text-xs border-collapse border border-slate-600 bg-slate-950">
+                        <thead>
+                            <tr class="bg-slate-800 text-slate-300">
+                                <th class="border border-slate-600 px-2 py-1 w-12">行</th>
+                                <th class="border border-slate-600 px-2 py-1 text-left">A列（問題文）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="border border-slate-600 px-2 py-1 text-center text-slate-500">1</td>
+                                <td class="border border-slate-600 px-2 py-1 text-amber-300">問題文（見出し行・省略可）</td>
+                            </tr>
+                            <tr>
+                                <td class="border border-slate-600 px-2 py-1 text-center text-slate-500">2</td>
+                                <td class="border border-slate-600 px-2 py-1">日本で一番高い山は富士山ですが、2番目に高い山は何でしょう？</td>
+                            </tr>
+                            <tr>
+                                <td class="border border-slate-600 px-2 py-1 text-center text-slate-500">3</td>
+                                <td class="border border-slate-600 px-2 py-1">本校の創立記念日は何月何日でしょう？</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="font-black text-purple-400">② 生徒成績データ用 Excel（名前と点数）</h3>
+                        <button onclick="downloadSampleCSV('students')"
+                            class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3 py-1 rounded-lg">
+                            <i class="fa-solid fa-download mr-1"></i>生徒35名サンプルCSV取得
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-2">A列に「生徒名（クラス・名前など）」、B列に「点数（数値）」を入力してください。順不同でも読み込み時に<strong
+                            class="text-amber-300 font-bold">自動で点数が高い順に並び替え</strong>ます。</p>
+                    <table class="w-full text-xs border-collapse border border-slate-600 bg-slate-950">
+                        <thead>
+                            <tr class="bg-slate-800 text-slate-300">
+                                <th class="border border-slate-600 px-2 py-1 w-12">行</th>
+                                <th class="border border-slate-600 px-2 py-1 text-left">A列（生徒名）</th>
+                                <th class="border border-slate-600 px-2 py-1 text-left">B列（点数）</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="border border-slate-600 px-2 py-1 text-center text-slate-500">1</td>
+                                <td class="border border-slate-600 px-2 py-1 text-amber-300">名前（見出し行・省略可）</td>
+                                <td class="border border-slate-600 px-2 py-1 text-amber-300">点数</td>
+                            </tr>
+                            <tr>
+                                <td class="border border-slate-600 px-2 py-1 text-center text-slate-500">2</td>
+                                <td class="border border-slate-600 px-2 py-1">3年A組 佐藤 健太</td>
+                                <td class="border border-slate-600 px-2 py-1">95</td>
+                            </tr>
+                            <tr>
+                                <td class="border border-slate-600 px-2 py-1 text-center text-slate-500">3</td>
+                                <td class="border border-slate-600 px-2 py-1">2年C組 鈴木 陽菜</td>
+                                <td class="border border-slate-600 px-2 py-1">88</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-5 flex justify-end">
+                <button onclick="closeModal('excel-guide-modal')"
+                    class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 生徒データ確認・編集モーダル -->
+    <div id="students-modal"
+        class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div
+            class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl p-6 shadow-2xl flex flex-col max-h-[88vh]">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-black text-white"><i
+                        class="fa-solid fa-users text-purple-400 mr-2"></i>登録済み生徒ランキングデータ</h2>
+                <button onclick="closeModal('students-modal')" class="text-slate-400 hover:text-white text-xl"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-slate-400 mb-3">点数順に自動ソートされています。直接名前や点数を修正することも可能です。</p>
+            <div id="students-list-container" class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                <!-- JSでリスト描画 -->
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
+                <button onclick="addNewStudentRow()"
+                    class="bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-bold px-3 py-2 rounded-lg">
+                    ＋ 生徒を1名追加
+                </button>
+                <button onclick="saveStudentsManual()"
+                    class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-black px-5 py-2 rounded-lg">
+                    変更を保存してソート
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. PWAオフライン化ファイル出力モーダル -->
+    <div id="pwa-modal"
+        class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-black text-white"><i
+                        class="fa-solid fa-mobile-screen text-sky-400 mr-2"></i>PWA（オフラインアプリ化）手順</h2>
+                <button onclick="closeModal('pwa-modal')" class="text-slate-400 hover:text-white text-xl"><i
+                        class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                このHTMLファイル単体でもインターネットなしで動作しますが、PCのデスクトップアプリとしてインストール（PWA化）したい場合は、以下の2つのファイルをダウンロードしてこのHTMLと同じフォルダに配置してください。
+            </p>
+            <div class="flex gap-3 mb-4">
+                <button onclick="downloadPwaFile('manifest')"
+                    class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs">
+                    <i class="fa-solid fa-file-code text-amber-400 mr-1"></i>manifest.json を保存
+                </button>
+                <button onclick="downloadPwaFile('sw')"
+                    class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-2.5 px-3 rounded-xl text-xs">
+                    <i class="fa-solid fa-gears text-emerald-400 mr-1"></i>sw.js を保存
+                </button>
+            </div>
+            <div class="bg-slate-950 p-3 rounded-lg text-[11px] text-slate-400">
+                ※本番当日は、PCとプロジェクター（大型モニター）をHDMIケーブル等で接続し、Windowsなら <kbd
+                    class="bg-slate-800 px-1.5 py-0.5 rounded text-slate-200">Win + P</kbd>
+                →「拡張」を選択してから「発表用画面を開く」を押してプロジェクター側へ移動させてください。
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="closeModal('pwa-modal')"
+                    class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast"
+        class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 border border-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl z-50 opacity-0 pointer-events-none transition-opacity duration-300">
+        通知メッセージ
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. モード判定（司会者コントローラー画面 vs 生徒向けプロジェクター画面）
+        // =========================================================================
+        const urlParams = new URLSearchParams(window.location.search);
+        const isProjectorMode = urlParams.get('mode') === 'projector';
+
+        // 2画面完全オフライン・ゼロ遅延同期チャンネル
+        const channel = new BroadcastChannel('school_quiz_live_sync_v1');
+
+        // =========================================================================
+        // 2. アプリケーション状態管理 & 初期サンプルデータ
+        // =========================================================================
+        const STORAGE_KEY = 'school_quiz_app_state_v1';
+
+        function generateDefaultStudents() {
+            const sampleNames = [
+                "3年A組 佐藤 健太", "3年B組 鈴木 陽菜", "2年A組 高橋 翔太", "3年C組 田中 美咲",
+                "1年B組 伊藤 蓮", "2年C組 渡辺 結衣", "3年A組 山本 大輝", "2年B組 中村 莉子",
+                "3年D組 小林 悠真", "1年A組 加藤 さくら", "2年D組 吉田 颯太", "3年B組 山田 杏奈",
+                "1年C組 佐々木 陸", "3年C組 山口 愛美", "2年A組 松本 樹", "3年D組 井上 琴音",
+                "1年D組 木村 湊", "2年B組 林 彩乃", "3年A組 斎藤 翼", "2年C組 清水 七海",
+                "1年A組 山崎 朝陽", "3年B組 森 優衣", "2年D組 池田 陽向", "3年C組 橋本 芽依",
+                "1年B組 阿部 律", "2年A組 石川 凛", "3年D組 山下 蒼空", "1年C組 中島 紬",
+                "2年B組 前田 暖", "3年A組 藤田 葵", "1年D組 小川 瑛太", "2年C組 後藤 詩織",
+                "3年B組 岡田 悠斗", "1年A組 長谷川 結菜", "2年D組 村上 大和"
+            ];
+            return sampleNames.map((name, idx) => ({
+                name,
+                score: 100 - idx * 2 - (idx % 3)
+            }));
+        }
+
+        function createDefaultState() {
+            const set1Id = 'set_prelim_' + Date.now();
+            const set2Id = 'set_final_' + (Date.now() + 1);
+            return {
+                currentIndex: 0,
+                drumrollActive: false,
+                // TOP10などの段階発表用：現在何人公開済みか（0 = まだ誰も表示していない）
+                revealedCount: 0,
+                students: generateDefaultStudents(),
+                slides: [
+                    {
+                        id: 'slide_open_1',
+                        type: 'opening',
+                        title: '学校祭 特別企画',
+                        body: '全校生徒対抗！大クイズ大会'
+                    },
+                    {
+                        id: 'slide_q_p1',
+                        type: 'question_prelim',
+                        title: '予選 第1問',
+                        body: '日本で一番面積が大きい都道府県は北海道ですが、2番目に面積が大きい都道府県はどこでしょう？'
+                    },
+                    {
+                        id: 'slide_q_p2',
+                        type: 'question_prelim',
+                        title: '予選 第2問',
+                        body: 'オリンピックの五輪のマークに使われている5つの色は、青・黄・黒・緑とあと1色は何でしょう？'
+                    },
+                    {
+                        id: 'slide_q_p3',
+                        type: 'question_prelim',
+                        title: '予選 第3問',
+                        body: '次のうち、本校の校歌の歌詞に実際に登場する言葉はどれでしょう？'
+                    },
+                    // 上位30人発表（2枚1セット）
+                    {
+                        id: 'slide_rank_title_1',
+                        type: 'ranking_title',
+                        setId: set1Id,
+                        mode: 'all',
+                        limit: 30,
+                        title: '予選結果発表！',
+                        body: '決勝進出 上位30名を一斉発表！！'
+                    },
+                    {
+                        id: 'slide_rank_list_1',
+                        type: 'ranking_all',
+                        setId: set1Id,
+                        limit: 30,
+                        title: '予選突破 上位30名',
+                        body: ''
+                    },
+                    // 決勝問題
+                    {
+                        id: 'slide_q_f1',
+                        type: 'question_final',
+                        title: '決勝 第1問',
+                        body: '1から100までの整数をすべて足し算すると、合計はいくつになるでしょう？'
+                    },
+                    {
+                        id: 'slide_q_f2',
+                        type: 'question_final',
+                        title: '決勝 第2問',
+                        body: '世界三大珍味と呼ばれる食べ物は、キャビア・フォアグラとあと1つは何でしょう？'
+                    },
+                    // TOP10発表（2枚1セット・1人ずつ溜め発表）
+                    {
+                        id: 'slide_rank_title_2',
+                        type: 'ranking_title',
+                        setId: set2Id,
+                        mode: 'countdown',
+                        limit: 10,
+                        title: '最終結果発表！',
+                        body: '栄光のTOP10 発表！！'
+                    },
+                    {
+                        id: 'slide_rank_list_2',
+                        type: 'ranking_countdown',
+                        setId: set2Id,
+                        limit: 10,
+                        title: '最終順位 TOP10',
+                        body: ''
+                    }
+                ]
+            };
+        }
+
+        let state = loadState();
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+                        return parsed;
+                    }
+                }
+            } catch (e) {
+                console.error('State load error:', e);
+            }
+            return createDefaultState();
+        }
+
+        function saveAndSyncState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                console.error('Save error:', e);
+            }
+            // プロジェクター画面へ即座にブロードキャスト
+            channel.postMessage({ type: 'SYNC_STATE', state });
+            if (!isProjectorMode) {
+                renderController();
+            }
+        }
+
+        // =========================================================================
+        // 3. スライド描画エンジン（プレビューとプロジェクターで共通利用）
+        // =========================================================================
+        function buildSlideHTML(slide, stateObj, isLargeProjector = false) {
+            if (!slide) return '';
+
+            // 1. オープニング画面
+            if (slide.type === 'opening') {
+                return `
+          <div class="w-full h-full bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 flex flex-col items-center justify-center p-12 text-center relative overflow-hidden">
+            <div class="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-400 via-transparent to-transparent"></div>
+            <div class="border-4 border-amber-400/60 rounded-3xl px-12 py-12 bg-slate-950/60 backdrop-blur-md shadow-2xl w-full max-w-[90%] mx-auto flex flex-col items-center justify-center text-center animate-pop-in">
+              <div class="inline-flex items-center justify-center bg-amber-400 text-slate-950 font-black px-8 py-2 rounded-full text-2xl tracking-widest mb-6 shadow-lg text-center mx-auto">
+                ${escapeHTML(slide.title)}
+              </div>
+              <h1 style="font-size: clamp(2.25rem, 4.4vw, 4rem);" class="w-full font-black text-white leading-tight tracking-tight drop-shadow-[0_4px_20px_rgba(251,191,36,0.4)] whitespace-pre-line text-center headline-balanced mx-auto">
+                ${escapeHTML(slide.body)}
+              </h1>
+            </div>
+          </div>
+        `;
+            }
+
+            // 2. 問題画面（予選・決勝：問題文のみ表示）
+            if (slide.type === 'question_prelim' || slide.type === 'question_final') {
+                const isFinal = slide.type === 'question_final';
+                const length = Array.from(String(slide.body || '')).length;
+                const questionFontSize = length > 80
+                    ? 'clamp(2rem, 3.4vw, 3.9rem)'
+                    : length > 45
+                        ? 'clamp(2.5rem, 4.3vw, 5rem)'
+                        : 'clamp(3rem, 5.4vw, 6.1rem)';
+                return `
+          <section class="slide-question ${isFinal ? 'slide-question-final' : 'slide-question-prelim'}">
+            <header class="slide-question-header">
+              <div class="question-round">${escapeHTML(slide.title)}</div>
+              <div class="question-stage-label">${isFinal ? 'FINAL ROUND' : 'QUALIFYING ROUND'}</div>
+            </header>
+            <div class="question-frame">
+              <p class="question-text" style="font-size: ${questionFontSize};">${escapeHTML(String(slide.body || '').trim())}</p>
+            </div>
+            <div class="question-footer"><span>QUIZ ARENA</span><span>${isFinal ? '決勝' : '予選'}</span></div>
+          </section>
+        `;
+            }
+
+            // 3. 上位発表・煽りタイトル画面（2枚セットの1枚目）
+            if (slide.type === 'ranking_title') {
+                const isCountdown = slide.mode === 'countdown';
+                return `
+          <section class="ranking-title-slide ${isCountdown ? 'ranking-title-final' : ''}">
+            <div class="ranking-title-inner animate-dramatic">
+              <p class="ranking-title-kicker">${escapeHTML(slide.title)}</p>
+              <h1 class="ranking-title-main">${escapeHTML(String(slide.body || '').trim())}</h1>
+              <span class="ranking-title-rule"></span>
+            </div>
+          </section>
+        `;
+            }
+
+            // 4. 上位30人一斉発表画面（2枚セットの2枚目・一斉バーン！）
+            if (slide.type === 'ranking_all') {
+                const limit = slide.limit || 30;
+                const rankedStudents = getSortedStudents().slice(0, limit);
+                // 30人を綺麗に表示するため3列×10行のグリッド構成
+                const colsClass = limit <= 10 ? 'grid-cols-2' : limit <= 20 ? 'grid-cols-2' : 'grid-cols-3';
+
+                const cardsHTML = rankedStudents.map((st, idx) => {
+                    const rank = idx + 1;
+                    let rankBadge = 'rank-badge-regular';
+                    let rankCardHighlight = '';
+                    let rankLabel = String(rank);
+                    if (rank === 1) {
+                        rankBadge = 'rank-badge-first';
+                        rankCardHighlight = 'rank-card-first';
+                        rankLabel = '<i class="fa-solid fa-crown" aria-hidden="true"></i><span>1</span>';
+                    } else if (rank === 2) {
+                        rankBadge = 'rank-badge-second';
+                        rankCardHighlight = 'rank-card-second';
+                    } else if (rank === 3) {
+                        rankBadge = 'rank-badge-third';
+                        rankCardHighlight = 'rank-card-third';
+                    }
+
+                    return `
+            <div class="ranking-card bg-slate-900/95 border border-slate-700 rounded-xl px-3.5 py-2 flex items-center justify-between shadow animate-pop-in ${rankCardHighlight}" style="animation-delay: ${idx * 25}ms">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="${rankBadge} rank-badge font-black text-lg w-9 h-9 rounded-lg flex items-center justify-center shrink-0">
+                  ${rankLabel}
+                </span>
+                <span class="rank-name font-bold text-white text-xl truncate">${escapeHTML(st.name)}</span>
+              </div>
+              <span class="rank-score font-black text-amber-300 text-xl ml-2 shrink-0">${st.score}<span class="text-sm text-slate-400 ml-0.5">点</span></span>
+            </div>
+          `;
+                }).join('');
+
+                return `
+          <div class="w-full h-full bg-gradient-to-b from-slate-950 via-indigo-950/60 to-slate-950 p-7 flex flex-col">
+            <div class="w-full flex flex-col items-center justify-center text-center mb-4 shrink-0 border-b border-slate-800 pb-3 relative">
+              <h2 style="font-size: clamp(1.8rem, 2.5vw, 2.6rem);" class="font-black text-amber-400 tracking-wider text-center mx-auto">
+                <i class="fa-solid fa-crown mr-2"></i>${escapeHTML(slide.title)}（上位${limit}名）
+              </h2>
+              <span class="text-slate-400 font-bold text-sm mt-1">おめでとうございます！</span>
+            </div>
+            <div class="flex-1 grid ${colsClass} gap-2.5 content-start overflow-hidden">
+              ${cardsHTML || '<div class="col-span-3 text-center text-slate-400 text-2xl mt-20">生徒データが登録されていません</div>'}
+            </div>
+          </div>
+        `;
+            }
+
+            // 5. TOP10発表画面（2枚セットの2枚目・10位から1人ずつ溜め発表）
+            if (slide.type === 'ranking_countdown') {
+                const limit = slide.limit || 10;
+                const rankedStudents = getSortedStudents().slice(0, limit);
+                const total = rankedStudents.length;
+                const revealed = Math.min(stateObj.revealedCount || 0, total);
+
+                // 10位(index 9)から順に公開していく
+                // 左列：10位〜4位、右列：3位・2位・1位（表彰台スタイル）の2カラム構成
+                const slotsHTML = rankedStudents.map((st, idx) => {
+                    const rank = idx + 1; // 1位〜10位
+                    // 下位から公開するロジック：rankが (total - revealed + 1) 以上なら公開済み
+                    const isRevealed = rank >= (total - revealed + 1) && revealed > 0;
+                    const isLatest = rank === (total - revealed + 1) && revealed > 0;
+
+                    let cardStyle = 'bg-slate-900/60 border-slate-800 text-slate-600';
+                    let badgeStyle = 'bg-slate-800 text-slate-500';
+                    if (isRevealed) {
+                        if (rank === 1) {
+                            cardStyle = 'bg-gradient-to-r from-amber-500/30 via-yellow-500/20 to-amber-500/30 border-amber-400 text-white shadow-[0_0_25px_rgba(251,191,36,0.4)]';
+                            badgeStyle = 'bg-amber-400 text-slate-950';
+                        } else if (rank === 2) {
+                            cardStyle = 'bg-gradient-to-r from-slate-300/25 to-slate-400/20 border-slate-300 text-white';
+                            badgeStyle = 'bg-slate-200 text-slate-950';
+                        } else if (rank === 3) {
+                            cardStyle = 'bg-gradient-to-r from-amber-700/30 to-orange-800/20 border-amber-600 text-white';
+                            badgeStyle = 'bg-amber-600 text-white';
+                        } else {
+                            cardStyle = 'bg-slate-900 border-indigo-500/50 text-white';
+                            badgeStyle = 'bg-indigo-600 text-white';
+                        }
+                    }
+
+                    return `
+            <div class="top-rank-card border-2 ${cardStyle} rounded-2xl px-5 py-3 flex items-center justify-between transition-all ${isRevealed && rank === 1 ? 'top-rank-one' : isRevealed && rank === 2 ? 'top-rank-two' : isRevealed && rank === 3 ? 'top-rank-three' : ''} ${isLatest ? 'animate-dramatic ring-4 ring-amber-400' : ''}">
+              <div class="flex items-center gap-4 min-w-0">
+                <span class="top-rank-badge ${rank >= 10 ? 'top-rank-badge-double' : ''} ${badgeStyle} font-black text-2xl w-12 h-12 rounded-xl flex items-center justify-center shrink-0">
+                  ${rank === 1 ? '<i class="fa-solid fa-crown mr-1" aria-hidden="true"></i>1位' : rank + '位'}
+                </span>
+                <span class="top-rank-name font-black text-3xl truncate flex-1 min-w-0">
+                  ${isRevealed ? escapeHTML(st.name) : '？？？？？？'}
+                </span>
+              </div>
+              <span class="top-rank-score font-black text-2xl ${isRevealed ? 'text-amber-300' : 'text-slate-700'} ml-3 shrink-0">
+                ${isRevealed ? `${st.score}点` : '---'}
+              </span>
+            </div>
+          `;
+                });
+
+                // 左列に1〜5位、右列に6〜10位を上から順に配置（めくり順は10位→1位のまま維持）
+                const half = Math.ceil(total / 2);
+                const leftColHTML = slotsHTML.slice(0, half).join('');
+                const rightColHTML = slotsHTML.slice(half).join('');
+
+                return `
+          <div class="ranking-countdown-slide w-full h-full bg-gradient-to-br from-slate-950 via-purple-950/40 to-slate-950 p-8 flex flex-col">
+            <div class="countdown-heading w-full flex flex-col items-center justify-center text-center mb-5 shrink-0 relative">
+              <h2 style="font-size: clamp(2.2rem, 3vw, 3.2rem);" class="countdown-title font-black text-amber-400 tracking-wider text-center mx-auto">
+                <i class="fa-solid fa-trophy mr-3"></i>${escapeHTML(slide.title)}
+              </h2>
+              <span class="countdown-progress mt-2 bg-slate-900 border border-slate-700 px-4 py-1 rounded-full text-base font-bold text-slate-300">
+                ${revealed} / ${total} 名 発表済
+              </span>
+            </div>
+            <div class="countdown-columns flex-1 grid grid-cols-2 gap-6 items-center">
+              <div class="countdown-column space-y-3">${leftColHTML}</div>
+              <div class="countdown-column space-y-3">${rightColHTML}</div>
+            </div>
+          </div>
+        `;
+            }
+
+            return '';
+        }
+
+        function getSortedStudents() {
+            return [...(state.students || [])].sort((a, b) => Number(b.score) - Number(a.score));
+        }
+
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // =========================================================================
+        // 4. 司会者画面（コントローラー）のロジック＆レンダリング
+        // =========================================================================
+        let editingSlideIndex = null;
+
+        function initController() {
+            document.getElementById('controller-app').classList.remove('hidden');
+            document.getElementById('controller-app').classList.add('flex');
+
+            renderController();
+            window.addEventListener('resize', scalePreviewStage);
+
+            // キーボード矢印キー対応（入力欄にフォーカスがない時）
+            window.addEventListener('keydown', (e) => {
+                if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+                if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+                    e.preventDefault();
+                    nextSlide();
+                } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                    e.preventDefault();
+                    prevSlide();
+                }
+            });
+
+            // プロジェクターからの生存確認応答
+            channel.onmessage = (event) => {
+                if (event.data.type === 'PROJECTOR_READY') {
+                    const badge = document.getElementById('projector-status-badge');
+                    badge.textContent = '● 投影ウィンドウ接続中';
+                    badge.className = 'text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700 font-bold';
+                    channel.postMessage({ type: 'SYNC_STATE', state });
+                }
+            };
+        }
+
+        function renderController() {
+            // インデックス範囲補正
+            if (state.currentIndex >= state.slides.length) state.currentIndex = Math.max(0, state.slides.length - 1);
+            const currentSlide = state.slides[state.currentIndex];
+            const nextSlideObj = state.slides[state.currentIndex + 1];
+
+            // 1. 左上プレビュー描画
+            const previewStage = document.getElementById('preview-stage');
+            previewStage.innerHTML = buildSlideHTML(currentSlide, state, false);
+            scalePreviewStage();
+
+            // 2. 現在スライド情報更新
+            document.getElementById('current-slide-label').textContent = `スライド ${state.currentIndex + 1} / ${state.slides.length}`;
+            document.getElementById('current-slide-title-preview').textContent = `${currentSlide.title} ${currentSlide.body ? ' - ' + currentSlide.body : ''}`;
+            document.getElementById('student-count-badge').textContent = state.students.length;
+
+            // TOP10段階発表コントロール表示制御
+            const top10Box = document.getElementById('top10-control-box');
+            if (currentSlide && currentSlide.type === 'ranking_countdown') {
+                top10Box.classList.remove('hidden');
+                const limit = currentSlide.limit || 10;
+                const total = Math.min(limit, state.students.length);
+                const remaining = Math.max(0, total - (state.revealedCount || 0));
+                document.getElementById('top10-progress-text').textContent = remaining > 0 ? `あと ${remaining} 人（次は ${remaining} 位）` : '全員発表完了！';
+                const btnReveal = document.getElementById('btn-reveal-next');
+                btnReveal.disabled = remaining === 0;
+                btnReveal.classList.toggle('opacity-50', remaining === 0);
+            } else {
+                top10Box.classList.add('hidden');
+            }
+
+            // ドラムロールボタン状態
+            const drumRing = document.getElementById('drumroll-ring');
+            const drumLabel = document.getElementById('drumroll-label');
+            if (state.drumrollActive) {
+                drumRing.classList.add('ring-4', 'ring-amber-300', 'animate-pulse');
+                drumLabel.textContent = 'ドキドキON';
+                drumLabel.classList.add('text-amber-400');
+            } else {
+                drumRing.classList.remove('ring-4', 'ring-amber-300', 'animate-pulse');
+                drumLabel.textContent = 'ドキドキ枠';
+                drumLabel.classList.remove('text-amber-400');
+            }
+
+            // 3. 次スライドバナー更新
+            const nextInfo = document.getElementById('next-slide-info');
+            if (nextSlideObj) {
+                nextInfo.textContent = `次に表示: [${state.currentIndex + 2}] ${nextSlideObj.title} ${nextSlideObj.body ? '（' + nextSlideObj.body.slice(0, 28) + '…）' : ''}`;
+            } else {
+                nextInfo.textContent = 'これが最後のスライドです';
+            }
+
+            // 4. 右側スライドグリッド一覧描画
+            renderSlidesGrid();
+        }
+
+        function scalePreviewStage() {
+            const container = document.getElementById('preview-container');
+            const stage = document.getElementById('preview-stage');
+            if (!container || !stage) return;
+            const scale = container.clientWidth / 1280;
+            stage.style.transform = `scale(${scale})`;
+        }
+
+        function renderSlidesGrid() {
+            const grid = document.getElementById('slides-grid');
+            grid.innerHTML = state.slides.map((slide, idx) => {
+                const isCurrent = idx === state.currentIndex;
+                const isNext = idx === state.currentIndex + 1;
+
+                let borderClass = 'border-slate-700 bg-slate-800/70 hover:border-slate-500';
+                let statusBadge = '';
+                if (isCurrent) {
+                    borderClass = 'border-rose-500 bg-rose-950/30 ring-2 ring-rose-500/60 shadow-lg shadow-rose-950/50';
+                    statusBadge = '<span class="bg-rose-600 text-white text-[10px] font-black px-2 py-0.5 rounded">投影中</span>';
+                } else if (isNext) {
+                    borderClass = 'border-amber-400 bg-amber-950/20 ring-1 ring-amber-400/50';
+                    statusBadge = '<span class="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded">NEXT ▶</span>';
+                }
+
+                const typeMeta = getSlideTypeMeta(slide.type);
+
+                return `
+          <div onclick="jumpToSlide(${idx})" class="cursor-pointer rounded-xl border-2 ${borderClass} p-3 flex flex-col justify-between transition group relative">
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-2">
+                <div class="flex items-center gap-1.5">
+                  <span class="bg-slate-950 text-slate-300 font-black text-xs px-2 py-0.5 rounded">${idx + 1}</span>
+                  <span class="${typeMeta.badgeClass} text-[10px] font-bold px-2 py-0.5 rounded">${typeMeta.label}</span>
+                </div>
+                ${statusBadge}
+              </div>
+              <h3 class="font-black text-sm text-white truncate mb-1">${escapeHTML(slide.title)}</h3>
+              <p class="text-xs text-slate-300 line-clamp-2 min-h-[2.5em]">
+                ${slide.type === 'ranking_all' ? `上位 ${slide.limit || 30} 名を一斉表示` :
+                        slide.type === 'ranking_countdown' ? `上位 ${slide.limit || 10} 名を1人ずつ発表` :
+                            escapeHTML(slide.body)}
+              </p>
+            </div>
+
+            <!-- 操作ボタン（並べ替え・編集・削除） -->
+            <div class="mt-3 pt-2 border-t border-slate-700/70 flex items-center justify-between" onclick="event.stopPropagation()">
+              <div class="flex items-center gap-1">
+                <button onclick="moveSlide(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} class="p-1.5 rounded bg-slate-900 hover:bg-slate-700 disabled:opacity-30 text-slate-300 text-xs" title="前へ移動">
+                  <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <button onclick="moveSlide(${idx}, 1)" ${idx === state.slides.length - 1 ? 'disabled' : ''} class="p-1.5 rounded bg-slate-900 hover:bg-slate-700 disabled:opacity-30 text-slate-300 text-xs" title="後ろへ移動">
+                  <i class="fa-solid fa-arrow-right"></i>
+                </button>
+              </div>
+              <div class="flex items-center gap-1">
+                <button onclick="openEditModal(${idx})" class="px-2 py-1 rounded bg-slate-700 hover:bg-indigo-600 text-white text-xs font-bold transition">
+                  <i class="fa-solid fa-pen"></i> 編集
+                </button>
+                <button onclick="deleteSlide(${idx})" class="p-1.5 rounded bg-slate-900 hover:bg-rose-600 text-slate-400 hover:text-white text-xs transition" title="削除">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+            }).join('');
+        }
+
+        function getSlideTypeMeta(type) {
+            switch (type) {
+                case 'opening': return { label: 'オープニング', badgeClass: 'bg-indigo-900 text-indigo-200' };
+                case 'question_prelim': return { label: '予選問題', badgeClass: 'bg-emerald-900 text-emerald-200' };
+                case 'question_final': return { label: '決勝問題', badgeClass: 'bg-sky-900 text-sky-200' };
+                case 'ranking_title': return { label: '発表タイトル(1/2)', badgeClass: 'bg-amber-900 text-amber-200' };
+                case 'ranking_all': return { label: '一斉発表(2/2)', badgeClass: 'bg-amber-700 text-white' };
+                case 'ranking_countdown': return { label: '1人ずつ発表(2/2)', badgeClass: 'bg-rose-900 text-rose-200' };
+                default: return { label: 'スライド', badgeClass: 'bg-slate-700 text-slate-200' };
+            }
+        }
+
+        // =========================================================================
+        // 5. ナビゲーション・TOP10めくり・演出アクション
+        // =========================================================================
+        function jumpToSlide(idx, direction = null) {
+            if (idx < 0 || idx >= state.slides.length) return;
+            const inferredDir = direction || (idx >= state.currentIndex ? 'next' : 'prev');
+            state.lastDirection = inferredDir;
+            state.transitionNonce = (state.transitionNonce || 0) + 1;
+            state.currentIndex = idx;
+            // 段階発表スライドに入った時は0人公開状態にリセット
+            if (state.slides[idx].type === 'ranking_countdown') {
+                state.revealedCount = 0;
+            }
+            saveAndSyncState();
+        }
+
+        function nextSlide() {
+            const current = state.slides[state.currentIndex];
+            // TOP10スライドでまだ全員めくり終わっていない場合は、次の順位をめくる動作を優先
+            if (current && current.type === 'ranking_countdown') {
+                const total = Math.min(current.limit || 10, state.students.length);
+                if ((state.revealedCount || 0) < total) {
+                    revealNextRank();
+                    return;
+                }
+            }
+            if (state.currentIndex < state.slides.length - 1) {
+                jumpToSlide(state.currentIndex + 1, 'next');
+            }
+        }
+
+        function prevSlide() {
+            if (state.currentIndex > 0) {
+                jumpToSlide(state.currentIndex - 1, 'prev');
+            }
+        }
+
+        function revealNextRank() {
+            const current = state.slides[state.currentIndex];
+            if (!current || current.type !== 'ranking_countdown') return;
+            const total = Math.min(current.limit || 10, state.students.length);
+            if ((state.revealedCount || 0) < total) {
+                state.revealedCount = (state.revealedCount || 0) + 1;
+                saveAndSyncState();
+                // 1位発表時は自動で紙吹雪も飛ばす
+                if (state.revealedCount === total) {
+                    triggerEffect('confetti');
+                }
+            }
+        }
+
+        function resetRevealRank() {
+            state.revealedCount = 0;
+            saveAndSyncState();
+        }
+
+        function triggerEffect(effectName) {
+            channel.postMessage({ type: 'TRIGGER_EFFECT', effect: effectName });
+            showToast(effectName === 'confetti' ? '🎉 紙吹雪エフェクトを発動しました！' : '⚡ 閃光・集中線エフェクトを発動しました！');
+        }
+
+        function toggleDrumrollVisual() {
+            state.drumrollActive = !state.drumrollActive;
+            saveAndSyncState();
+        }
+
+        // =========================================================================
+        // 6. スライドの追加・削除・並べ替え・編集
+        // =========================================================================
+        function addSlide(type) {
+            const id = 'slide_' + Date.now();
+            let newSlide = { id, type, title: '', body: '' };
+            if (type === 'opening') {
+                newSlide.title = '特別コーナー';
+                newSlide.body = 'ここからは後半戦！';
+            } else if (type === 'question_prelim') {
+                const count = state.slides.filter(s => s.type === 'question_prelim').length + 1;
+                newSlide.title = `予選 第${count}問`;
+                newSlide.body = 'ここに予選の問題文を入力してください。';
+            } else if (type === 'question_final') {
+                const count = state.slides.filter(s => s.type === 'question_final').length + 1;
+                newSlide.title = `決勝 第${count}問`;
+                newSlide.body = 'ここに決勝の問題文を入力してください。';
+            }
+            // 現在選択中のスライドの直後に挿入
+            state.slides.splice(state.currentIndex + 1, 0, newSlide);
+            saveAndSyncState();
+            showToast('新しいスライドを追加しました');
+        }
+
+        // 上位発表は「タイトル画面＋発表画面」の2枚1セットで追加
+        function addRankingSet(mode) {
+            const setId = 'set_' + Date.now();
+            const limit = mode === 'all' ? 30 : 10;
+            const slide1 = {
+                id: setId + '_1',
+                type: 'ranking_title',
+                setId,
+                mode,
+                limit,
+                title: mode === 'all' ? '結果発表！' : '最終結果発表！',
+                body: mode === 'all' ? `上位${limit}名を一斉発表！！` : `栄光のTOP${limit} 発表！！`
+            };
+            const slide2 = {
+                id: setId + '_2',
+                type: mode === 'all' ? 'ranking_all' : 'ranking_countdown',
+                setId,
+                limit,
+                title: mode === 'all' ? `上位${limit}名 発表` : `最終順位 TOP${limit}`,
+                body: ''
+            };
+            state.slides.splice(state.currentIndex + 1, 0, slide1, slide2);
+            saveAndSyncState();
+            showToast(`上位${limit}名発表（2枚1セット）を追加しました`);
+        }
+
+        function moveSlide(index, direction) {
+            const targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= state.slides.length) return;
+            const temp = state.slides[index];
+            state.slides[index] = state.slides[targetIndex];
+            state.slides[targetIndex] = temp;
+
+            if (state.currentIndex === index) state.currentIndex = targetIndex;
+            else if (state.currentIndex === targetIndex) state.currentIndex = index;
+
+            saveAndSyncState();
+        }
+
+        function deleteSlide(index) {
+            if (state.slides.length <= 1) {
+                showToast('最後の1枚は削除できません');
+                return;
+            }
+            state.slides.splice(index, 1);
+            if (state.currentIndex >= state.slides.length) {
+                state.currentIndex = state.slides.length - 1;
+            }
+            saveAndSyncState();
+            showToast('スライドを削除しました');
+        }
+
+        function openEditModal(index) {
+            editingSlideIndex = index;
+            const slide = state.slides[index];
+            document.getElementById('edit-title').value = slide.title || '';
+            document.getElementById('edit-body').value = slide.body || '';
+
+            const bodyGroup = document.getElementById('edit-body-group');
+            const limitGroup = document.getElementById('edit-limit-group');
+
+            if (slide.type === 'ranking_all' || slide.type === 'ranking_countdown') {
+                bodyGroup.classList.add('hidden');
+                limitGroup.classList.remove('hidden');
+                document.getElementById('edit-limit').value = slide.limit || (slide.type === 'ranking_all' ? 30 : 10);
+            } else if (slide.type === 'ranking_title') {
+                bodyGroup.classList.remove('hidden');
+                limitGroup.classList.remove('hidden');
+                document.getElementById('edit-limit').value = slide.limit || 30;
+            } else {
+                bodyGroup.classList.remove('hidden');
+                limitGroup.classList.add('hidden');
+            }
+
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        function saveSlideEdit() {
+            if (editingSlideIndex === null) return;
+            const slide = state.slides[editingSlideIndex];
+            slide.title = document.getElementById('edit-title').value;
+            slide.body = document.getElementById('edit-body').value;
+
+            if (['ranking_all', 'ranking_countdown', 'ranking_title'].includes(slide.type)) {
+                const newLimit = Math.max(1, parseInt(document.getElementById('edit-limit').value, 10) || 10);
+                slide.limit = newLimit;
+                // 同じセットの相方スライドも人数設定を同期
+                if (slide.setId) {
+                    state.slides.forEach(s => {
+                        if (s.setId === slide.setId) {
+                            s.limit = newLimit;
+                        }
+                    });
+                }
+            }
+
+            closeModal('edit-modal');
+            saveAndSyncState();
+            showToast('スライドを更新しました');
+        }
+
+        // =========================================================================
+        // 7. Excel (.xlsx / .xls / .csv) インポート＆サンプル生成
+        // =========================================================================
+        function handleExcelImport(event, importType) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    let rows = [];
+                    if (typeof XLSX !== 'undefined') {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    } else {
+                        // 万が一SheetJSがオフラインで読めなかった場合の簡易CSVパーサー
+                        const text = new TextDecoder('utf-8').decode(e.target.result);
+                        rows = text.split(/\r?\n/).map(line => line.split(','));
+                    }
+
+                    processImportedRows(rows, importType);
+                } catch (err) {
+                    console.error(err);
+                    showToast('ファイルの読み込みに失敗しました。形式を確認してください');
+                }
+                event.target.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processImportedRows(rows, importType) {
+            // 空行を除外
+            const cleanRows = rows.filter(r => r && r.length > 0 && String(r[0] || '').trim() !== '');
+            if (cleanRows.length === 0) {
+                showToast('有効なデータが見つかりませんでした');
+                return;
+            }
+
+            if (importType === 'prelim_q' || importType === 'final_q') {
+                // 1行目が見出し（「問題」「問題文」「Question」など）なら除外
+                const firstCell = String(cleanRows[0][0]).trim();
+                const startIdx = ['問題', '問題文', '質問', 'question', 'q'].includes(firstCell.toLowerCase()) ? 1 : 0;
+
+                const questions = cleanRows.slice(startIdx).map(r => String(r[0]).trim()).filter(Boolean);
+                if (questions.length === 0) {
+                    showToast('問題文が見つかりませんでした');
+                    return;
+                }
+
+                const isFinal = importType === 'final_q';
+                const slideType = isFinal ? 'question_final' : 'question_prelim';
+                const prefix = isFinal ? '決勝' : '予選';
+
+                const newSlides = questions.map((qText, idx) => ({
+                    id: `imp_${importType}_${Date.now()}_${idx}`,
+                    type: slideType,
+                    title: `${prefix} 第${idx + 1}問`,
+                    body: qText
+                }));
+
+                // 既存の同種問題スライドを置き換えるか、適切な位置に挿入
+                const firstExistingIdx = state.slides.findIndex(s => s.type === slideType);
+                state.slides = state.slides.filter(s => s.type !== slideType);
+
+                const insertPos = firstExistingIdx >= 0 ? firstExistingIdx : (isFinal ? state.slides.length : 1);
+                state.slides.splice(Math.min(insertPos, state.slides.length), 0, ...newSlides);
+
+                saveAndSyncState();
+                showToast(`${prefix}問題を ${questions.length} 問インポートしました！`);
+
+            } else if (importType === 'students') {
+                // 1行目が見出し（「名前」「氏名」「生徒」など、または2列目が数値でない場合）なら除外
+                const secondCell = cleanRows[0][1];
+                const startIdx = isNaN(Number(secondCell)) ? 1 : 0;
+
+                const importedStudents = [];
+                for (let i = startIdx; i < cleanRows.length; i++) {
+                    const name = String(cleanRows[i][0] || '').trim();
+                    const score = Number(cleanRows[i][1]);
+                    if (name && !isNaN(score)) {
+                        importedStudents.push({ name, score });
+                    }
+                }
+
+                if (importedStudents.length === 0) {
+                    showToast('生徒名と点数のデータが見つかりませんでした');
+                    return;
+                }
+
+                state.students = importedStudents.sort((a, b) => b.score - a.score);
+                saveAndSyncState();
+                showToast(`生徒データ ${importedStudents.length} 名を読み込み、点数順にソートしました！`);
+            }
+        }
+
+        function downloadSampleCSV(type) {
+            let csvContent = '\uFEFF'; // Excel文字化け防止用BOM
+            let filename = '';
+            if (type === 'questions') {
+                csvContent += '問題文\n';
+                csvContent += '日本で一番面積が大きい都道府県は北海道ですが、2番目に大きい都道府県はどこでしょう？\n';
+                csvContent += '1年365日のうち、祝日法で定められている「国民の祝日」は全部で何日あるでしょう？\n';
+                csvContent += '次のうち、太陽系の惑星の中で最も大きい星はどれでしょう？\n';
+                filename = 'sample_quiz_questions.csv';
+            } else {
+                csvContent += '生徒名,点数\n';
+                generateDefaultStudents().forEach(st => {
+                    csvContent += `${st.name},${st.score}\n`;
+                });
+                filename = 'sample_students_scores.csv';
+            }
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // =========================================================================
+        // 8. 生徒データ手動確認・編集モーダル
+        // =========================================================================
+        function openStudentsModal() {
+            const sorted = getSortedStudents();
+            const container = document.getElementById('students-list-container');
+            container.innerHTML = sorted.map((st, idx) => `
+        <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg student-row">
+          <span class="w-8 text-center font-black text-xs text-amber-400">${idx + 1}位</span>
+          <input type="text" value="${escapeHTML(st.name)}" class="flex-1 bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white font-bold st-name" />
+          <input type="number" value="${st.score}" class="w-20 bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-amber-300 font-bold text-right st-score" />
+          <span class="text-xs text-slate-400">点</span>
+          <button onclick="this.parentElement.remove()" class="text-slate-500 hover:text-rose-400 px-1.5"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      `).join('');
+            document.getElementById('students-modal').classList.remove('hidden');
+        }
+
+        function addNewStudentRow() {
+            const container = document.getElementById('students-list-container');
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2 bg-slate-800 p-2 rounded-lg student-row';
+            div.innerHTML = `
+        <span class="w-8 text-center font-black text-xs text-slate-400">新規</span>
+        <input type="text" placeholder="クラス・氏名" class="flex-1 bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-white font-bold st-name" />
+        <input type="number" value="0" class="w-20 bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-amber-300 font-bold text-right st-score" />
+        <span class="text-xs text-slate-400">点</span>
+        <button onclick="this.parentElement.remove()" class="text-slate-500 hover:text-rose-400 px-1.5"><i class="fa-solid fa-xmark"></i></button>
+      `;
+            container.prepend(div);
+        }
+
+        function saveStudentsManual() {
+            const rows = document.querySelectorAll('#students-list-container .student-row');
+            const updated = [];
+            rows.forEach(row => {
+                const name = row.querySelector('.st-name').value.trim();
+                const score = Number(row.querySelector('.st-score').value) || 0;
+                if (name) updated.push({ name, score });
+            });
+            state.students = updated.sort((a, b) => b.score - a.score);
+            closeModal('students-modal');
+            saveAndSyncState();
+            showToast('生徒データを保存しました');
+        }
+
+        // =========================================================================
+        // 9. 発表用ウィンドウ起動・PWA出力・ユーティリティ
+        // =========================================================================
+        function openProjectorWindow() {
+            const url = window.location.href.split('?')[0] + '?mode=projector';
+            window.open(url, 'QuizProjectorWindow', 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+            showToast('発表用ウィンドウを開きました！外部モニターへ移動させてください');
+        }
+
+        function openExcelGuideModal() {
+            document.getElementById('excel-guide-modal').classList.remove('hidden');
+        }
+
+        function openPwaModal() {
+            document.getElementById('pwa-modal').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function confirmResetData() {
+            // カスタム確認の代わりに2回クリックまたは即リセット＋通知
+            state = createDefaultState();
+            saveAndSyncState();
+            showToast('初期サンプルデータにリセットしました');
+        }
+
+        function downloadPwaFile(type) {
+            let content = '';
+            let filename = '';
+            let mime = 'application/json';
+
+            if (type === 'manifest') {
+                filename = 'manifest.json';
+                content = JSON.stringify({
+                    name: "学校イベント クイズ大会システム",
+                    short_name: "クイズ大会",
+                    start_url: "./quiz_presenter.html",
+                    display: "standalone",
+                    background_color: "#0f172a",
+                    theme_color: "#4f46e5",
+                    icons: []
+                }, null, 2);
+            } else {
+                filename = 'sw.js';
+                mime = 'application/javascript';
+                content = `
+const CACHE_NAME = 'school-quiz-pwa-v1';
+const ASSETS = ['./quiz_presenter.html'];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+});
+        `.trim();
+            }
+
+            const blob = new Blob([content], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2800);
+        }
+
+        // =========================================================================
+        // 10. 生徒向け発表プロジェクター画面のロジック＆視覚エフェクト
+        // =========================================================================
+        function initProjector() {
+            document.title = '【発表投影用】クイズ大会スクリーン';
+            document.getElementById('projector-app').classList.remove('hidden');
+
+            renderProjector();
+
+            // 司会者画面へ接続完了を通知
+            channel.postMessage({ type: 'PROJECTOR_READY' });
+
+            // 司会者画面からのリアルタイム指令を受信
+            channel.onmessage = (event) => {
+                const msg = event.data;
+                if (msg.type === 'SYNC_STATE') {
+                    state = msg.state;
+                    renderProjector();
+                } else if (msg.type === 'TRIGGER_EFFECT') {
+                    playProjectorEffect(msg.effect);
+                }
+            };
+
+            // 万が一ストレージが直接更新された場合のフォールバック
+            window.addEventListener('storage', (e) => {
+                if (e.key === STORAGE_KEY && e.newValue) {
+                    state = JSON.parse(e.newValue);
+                    renderProjector();
+                }
+            });
+
+            // プロジェクター側でも矢印キー操作を許可
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight') nextSlide();
+                else if (e.key === 'ArrowLeft') prevSlide();
+            });
+        }
+
+        let lastRenderedSlideKey = '';
+
+        function renderProjector() {
+            const stage = document.getElementById('projector-stage');
+            const slide = state.slides[state.currentIndex];
+            const slideKey = `${state.currentIndex}_${state.transitionNonce || 0}`;
+
+            stage.innerHTML = buildSlideHTML(slide, state, true);
+
+            // スライドが切り替わった時になめらかなトランジションを再発火
+            if (slideKey !== lastRenderedSlideKey) {
+                lastRenderedSlideKey = slideKey;
+                stage.classList.remove('animate-slide-next', 'animate-slide-prev');
+                void stage.offsetWidth; // reflow
+                stage.classList.add(state.lastDirection === 'prev' ? 'animate-slide-prev' : 'animate-slide-next');
+            }
+
+            // ドキドキ枠（ドラムロール視覚エフェクト）
+            if (state.drumrollActive) {
+                stage.classList.add('animate-drumroll-visual');
+            } else {
+                stage.classList.remove('animate-drumroll-visual');
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => { });
+            } else {
+                document.exitFullscreen().catch(() => { });
+            }
+        }
+
+        function playProjectorEffect(effectName) {
+            if (effectName === 'flash') {
+                const flashEl = document.getElementById('effect-flash-overlay');
+                const speedEl = document.getElementById('effect-speedlines');
+                flashEl.classList.remove('hidden', 'animate-flash');
+                speedEl.classList.remove('hidden');
+                void flashEl.offsetWidth; // reflow
+                flashEl.classList.add('animate-flash');
+                setTimeout(() => {
+                    flashEl.classList.add('hidden');
+                    speedEl.classList.add('hidden');
+                }, 1800);
+            } else if (effectName === 'confetti') {
+                launchConfetti();
+            }
+        }
+
+        // 紙吹雪アニメーション（外部ライブラリ不要・軽量Canvas描画）
+        function launchConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const colors = ['#f43f5e', '#fbbf24', '#34d399', '#38bdf8', '#a78bfa', '#ffffff'];
+            const particles = Array.from({ length: 140 }, () => ({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height - canvas.height,
+                w: Math.random() * 12 + 6,
+                h: Math.random() * 8 + 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                vy: Math.random() * 5 + 3,
+                vx: (Math.random() - 0.5) * 4,
+                rot: Math.random() * 360,
+                vRot: (Math.random() - 0.5) * 10
+            }));
+
+            let frames = 0;
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.vRot;
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rot * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                    ctx.restore();
+                });
+                frames++;
+                if (frames < 220) {
+                    requestAnimationFrame(animate);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            animate();
+        }
+
+        // =========================================================================
+        // 起動エントリーポイント
+        // =========================================================================
+        window.onload = function () {
+            if (isProjectorMode) {
+                initProjector();
+            } else {
+                initController();
+            }
+        };
+    </script>
+</body>
+
+</html>
+
+
